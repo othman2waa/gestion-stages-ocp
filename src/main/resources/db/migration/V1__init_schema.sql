@@ -1,6 +1,3 @@
--- =============================================
--- TABLE: departement
--- =============================================
 CREATE TABLE departement (
     id          BIGSERIAL PRIMARY KEY,
     code        VARCHAR(20)  NOT NULL UNIQUE,
@@ -9,9 +6,6 @@ CREATE TABLE departement (
     created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- =============================================
--- TABLE: etablissement
--- =============================================
 CREATE TABLE etablissement (
     id         BIGSERIAL PRIMARY KEY,
     nom        VARCHAR(150) NOT NULL,
@@ -21,9 +15,6 @@ CREATE TABLE etablissement (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- =============================================
--- TABLE: users
--- =============================================
 CREATE TABLE users (
     id         BIGSERIAL PRIMARY KEY,
     username   VARCHAR(50)  NOT NULL UNIQUE,
@@ -34,9 +25,6 @@ CREATE TABLE users (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- =============================================
--- TABLE: stagiaire
--- =============================================
 CREATE TABLE stagiaire (
     id               BIGSERIAL PRIMARY KEY,
     nom              VARCHAR(100) NOT NULL,
@@ -51,9 +39,6 @@ CREATE TABLE stagiaire (
     created_at       TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- =============================================
--- TABLE: encadrant
--- =============================================
 CREATE TABLE encadrant (
     id             BIGSERIAL PRIMARY KEY,
     nom            VARCHAR(100) NOT NULL,
@@ -65,9 +50,6 @@ CREATE TABLE encadrant (
     created_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- =============================================
--- TABLE: stage
--- =============================================
 CREATE TABLE stage (
     id             BIGSERIAL    PRIMARY KEY,
     stagiaire_id   BIGINT       NOT NULL REFERENCES stagiaire(id),
@@ -82,9 +64,6 @@ CREATE TABLE stage (
     updated_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- =============================================
--- TABLE: convention
--- =============================================
 CREATE TABLE convention (
     id             BIGSERIAL    PRIMARY KEY,
     stage_id       BIGINT       NOT NULL UNIQUE REFERENCES stage(id),
@@ -95,9 +74,6 @@ CREATE TABLE convention (
     created_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- =============================================
--- TABLE: evaluation
--- =============================================
 CREATE TABLE evaluation (
     id             BIGSERIAL PRIMARY KEY,
     stage_id       BIGINT    NOT NULL REFERENCES stage(id),
@@ -109,9 +85,6 @@ CREATE TABLE evaluation (
     created_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- =============================================
--- TABLE: audit_log
--- =============================================
 CREATE TABLE audit_log (
     id          BIGSERIAL    PRIMARY KEY,
     action      VARCHAR(100) NOT NULL,
@@ -120,15 +93,10 @@ CREATE TABLE audit_log (
     created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- =============================================
--- INDEX pour les performances
--- =============================================
 CREATE INDEX idx_stage_stagiaire   ON stage(stagiaire_id);
 CREATE INDEX idx_stage_encadrant   ON stage(encadrant_id);
 CREATE INDEX idx_stage_statut      ON stage(statut);
 CREATE INDEX idx_convention_stage  ON convention(stage_id);
 CREATE INDEX idx_evaluation_stage  ON evaluation(stage_id);
 ```
-
----
 
