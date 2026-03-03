@@ -1,4 +1,58 @@
 package com.OCP.Gestion_Stages.Controller;
 
+import com.OCP.Gestion_Stages.Service.interfaces.StagiaireService;
+import com.OCP.Gestion_Stages.domain.dto.stagiaire.StagiaireRequest;
+import com.OCP.Gestion_Stages.domain.dto.stagiaire.StagiaireResponse;
+import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
+
+@RestController
+@RequestMapping("/api/stagiaires")
+@RequiredArgsConstructor
 public class StagiaireController {
+
+    private final StagiaireService stagiaireService;
+
+    @GetMapping
+    @PreAuthorize("hasAnyRole('ADMIN_RH','RESPONSABLE_RH','ENCADRANT')")
+    public ResponseEntity<List<StagiaireResponse>> getAll() {
+        return ResponseEntity.ok(stagiaireService.findAll());
+    }
+
+    @GetMapping("/{id}")
+    @PreAuthorize("hasAnyRole('ADMIN_RH','RESPONSABLE_RH','ENCADRANT')")
+    public ResponseEntity<StagiaireResponse> getById(@PathVariable Long id) {
+        return ResponseEntity.ok(stagiaireService.findById(id));
+    }
+
+    @PostMapping
+    @PreAuthorize("hasAnyRole('ADMIN_RH','RESPONSABLE_RH')")
+    public ResponseEntity<StagiaireResponse> create(@Valid @RequestBody StagiaireRequest request) {
+        return ResponseEntity.ok(stagiaireService.create(request));
+    }
+
+    @PutMapping("/{id}")
+    @PreAuthorize("hasAnyRole('ADMIN_RH','RESPONSABLE_RH')")
+    public ResponseEntity<StagiaireResponse> update(@PathVariable Long id,
+                                                    @Valid @RequestBody StagiaireRequest request) {
+        return ResponseEntity.ok(stagiaireService.update(id, request));
+    }
+
+    @DeleteMapping("/{id}")
+    @PreAuthorize("hasRole('ADMIN_RH')")
+    public ResponseEntity<Void> delete(@PathVariable Long id) {
+        stagiaireService.delete(id);
+        return ResponseEntity.noContent().build();
+    }
+
+    @GetMapping("/search")
+    @PreAuthorize("hasAnyRole('ADMIN_RH','RESPONSABLE_RH','ENCADRANT')")
+    public ResponseEntity<List<StagiaireResponse>> search(@RequestParam String keyword) {
+        return ResponseEntity.ok(stagiaireService.search(keyword));
+    }
 }
