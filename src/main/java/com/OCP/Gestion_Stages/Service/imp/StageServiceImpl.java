@@ -1,17 +1,16 @@
 package com.OCP.Gestion_Stages.Service.imp;
 
-
-
+import com.OCP.Gestion_Stages.Repository.*;
+import com.OCP.Gestion_Stages.Service.interfaces.StageService;
 import com.OCP.Gestion_Stages.domain.dto.stage.StageRequest;
 import com.OCP.Gestion_Stages.domain.dto.stage.StageResponse;
 import com.OCP.Gestion_Stages.domain.enums.StageStatus;
 import com.OCP.Gestion_Stages.domain.model.*;
 import com.OCP.Gestion_Stages.exeptions.ResourceNotFoundException;
-import com.OCP.Gestion_Stages.Repository.*;
-import com.OCP.Gestion_Stages.Service.interfaces.StageService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -26,116 +25,103 @@ public class StageServiceImpl implements StageService {
     private final DepartementRepository departementRepository;
 
     @Override
-    public StageResponse createStage(StageRequest request) {
-        Stagiaire stagiaire = stagiaireRepository.findById(request.getStagiaireId())
-                .orElseThrow(() -> new ResourceNotFoundException("Stagiaire", request.getStagiaireId()));
-
-        Encadrant encadrant = null;
-        if (request.getEncadrantId() != null)
-            encadrant = encadrantRepository.findById(request.getEncadrantId())
-                    .orElseThrow(() -> new ResourceNotFoundException("Encadrant", request.getEncadrantId()));
-
-        Departement departement = null;
-        if (request.getDepartementId() != null)
-            departement = departementRepository.findById(request.getDepartementId())
-                    .orElseThrow(() -> new ResourceNotFoundException("Departement", request.getDepartementId()));
-
-        Stage stage = Stage.builder()
-                .stagiaire(stagiaire)
-                .encadrant(encadrant)
-                .departement(departement)
-                .sujet(request.getSujet())
-                .typeStage(request.getTypeStage())
-                .statut(StageStatus.EN_ATTENTE)
-                .dateDebut(request.getDateDebut())
-                .dateFin(request.getDateFin())
-                .build();
-
-        return toResponse(stageRepository.save(stage));
+    public List<StageResponse> findAll() {
+        return stageRepository.findAll()
+                .stream().map(this::toResponse).collect(Collectors.toList());
     }
 
     @Override
-    @Transactional(readOnly = true)
-    public StageResponse getStageById(Long id) {
+    public StageResponse findById(Long id) {
         return toResponse(stageRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Stage", id)));
+                .orElseThrow(() -> new ResourceNotFoundException("Stage introuvable : " + id)));
     }
 
     @Override
-    @Transactional(readOnly = true)
-    public List<StageResponse> getAllStages() {
-        return stageRepository.findAll().stream()
-                .map(this::toResponse)
-                .collect(Collectors.toList());
-    }
-
-    @Override
-    @Transactional(readOnly = true)
-    public List<StageResponse> getStagesByStagiaire(Long stagiaireId) {
-        return stageRepository.findByStagiaireId(stagiaireId).stream()
-                .map(this::toResponse)
-                .collect(Collectors.toList());
-    }
-
-    @Override
-    @Transactional(readOnly = true)
-    public List<StageResponse> getStagesByEncadrant(Long encadrantId) {
-        return stageRepository.findByEncadrantId(encadrantId).stream()
-                .map(this::toResponse)
-                .collect(Collectors.toList());
-    }
-
-    @Override
-    @Transactional(readOnly = true)
-    public List<StageResponse> getStagesByStatut(StageStatus statut) {
-        return stageRepository.findByStatut(statut).stream()
-                .map(this::toResponse)
-                .collect(Collectors.toList());
-    }
-
-    @Override
-    public StageResponse updateStage(Long id, StageRequest request) {
-        Stage stage = stageRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Stage", id));
-
-        stage.setSujet(request.getSujet());
-        stage.setTypeStage(request.getTypeStage());
-        stage.setDateDebut(request.getDateDebut());
-        stage.setDateFin(request.getDateFin());
-
+    public StageResponse create(StageRequest request) {
+        Stage stage = new Stage();
+        mapToEntity(request, stage);
         return toResponse(stageRepository.save(stage));
+    }
+
+    @Override
+    public StageResponse update(Long id, StageRequest request) {
+        Stage stage = stageRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Stage introuvable : " + id));
+        mapToEntity(request, stage);
+        return toResponse(stageRepository.save(stage));
+    }
+
+    @Override
+    public void delete(Long id) {
+        if (!stageRepository.existsById(id))
+            throw new ResourceNotFoundException("Stage introuvable : " + id);
+        stageRepository.deleteById(id);
     }
 
     @Override
     public StageResponse updateStatut(Long id, StageStatus statut) {
         Stage stage = stageRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Stage", id));
+                .orElseThrow(() -> new ResourceNotFoundException("Stage introuvable : " + id));
         stage.setStatut(statut);
         return toResponse(stageRepository.save(stage));
     }
 
     @Override
-    public void deleteStage(Long id) {
-        if (!stageRepository.existsById(id))
-            throw new ResourceNotFoundException("Stage", id);
-        stageRepository.deleteById(id);
+    public List<StageResponse> findByStagiaire(Long stagiaireId) {
+        return stageRepository.findByStagiaireId(stagiaireId)
+                .stream().map(this::toResponse).collect(Collectors.toList());
+    }
+
+    @Override
+    public List<StageResponse> findByEncadrant(Long encadrantId) {
+        return stageRepository.findByEncadrantId(encadrantId)
+                .stream().map(this::toResponse).collect(Collectors.toList());
+    }
+
+    private void mapToEntity(StageRequest request, Stage stage) {
+        stage.setSujet(request.getSujet());
+        stage.setTypeStage(request.getTypeStage());
+        stage.setDateDebut(request.getDateDebut());
+        stage.setDateFin(request.getDateFin());
+        if (request.getStatut() != null) stage.setStatut(request.getStatut());
+
+        Stagiaire stagiaire = stagiaireRepository.findById(request.getStagiaireId())
+                .orElseThrow(() -> new ResourceNotFoundException("Stagiaire introuvable"));
+        stage.setStagiaire(stagiaire);
+
+        if (request.getEncadrantId() != null) {
+            Encadrant encadrant = encadrantRepository.findById(request.getEncadrantId())
+                    .orElseThrow(() -> new ResourceNotFoundException("Encadrant introuvable"));
+            stage.setEncadrant(encadrant);
+        }
+        if (request.getDepartementId() != null) {
+            Departement departement = departementRepository.findById(request.getDepartementId())
+                    .orElseThrow(() -> new ResourceNotFoundException("Departement introuvable"));
+            stage.setDepartement(departement);
+        }
     }
 
     private StageResponse toResponse(Stage s) {
-        return StageResponse.builder()
-                .id(s.getId())
-                .stagiaireNom(s.getStagiaire().getNom())
-                .stagiairePrenom(s.getStagiaire().getPrenom())
-                .encadrantNom(s.getEncadrant() != null ?
-                        s.getEncadrant().getNom() + " " + s.getEncadrant().getPrenom() : null)
-                .departementNom(s.getDepartement() != null ? s.getDepartement().getNom() : null)
-                .sujet(s.getSujet())
-                .typeStage(s.getTypeStage())
-                .statut(s.getStatut())
-                .dateDebut(s.getDateDebut())
-                .dateFin(s.getDateFin())
-                .createdAt(s.getCreatedAt())
-                .build();
+        StageResponse response = new StageResponse();
+        response.setId(s.getId());
+        response.setSujet(s.getSujet());
+        response.setTypeStage(s.getTypeStage());
+        response.setStatut(s.getStatut());
+        response.setDateDebut(s.getDateDebut());
+        response.setDateFin(s.getDateFin());
+        response.setCreatedAt(s.getCreatedAt());
+        if (s.getStagiaire() != null) {
+            response.setStagiaireId(s.getStagiaire().getId());
+            response.setStagiaireNom(s.getStagiaire().getNom() + " " + s.getStagiaire().getPrenom());
+        }
+        if (s.getEncadrant() != null) {
+            response.setEncadrantId(s.getEncadrant().getId());
+            response.setEncadrantNom(s.getEncadrant().getNom() + " " + s.getEncadrant().getPrenom());
+        }
+        if (s.getDepartement() != null) {
+            response.setDepartementId(s.getDepartement().getId());
+            response.setDepartementNom(s.getDepartement().getNom());
+        }
+        return response;
     }
 }
-

@@ -16,4 +16,6 @@ public interface EvaluationRepository extends JpaRepository<Evaluation, Long> {
 
     @Query("SELECT AVG(e.note) FROM Evaluation e WHERE e.stage.id = :stageId")
     Double findAverageNoteByStageId(Long stageId);
+    @Query("SELECT AVG(e.note) FROM Evaluation e")
+    Double findAverageNote();
 }

@@ -1,19 +1,17 @@
 package com.OCP.Gestion_Stages.Service.imp;
 
-
-
+import com.OCP.Gestion_Stages.Repository.EtablissementRepository;
+import com.OCP.Gestion_Stages.Repository.StagiaireRepository;
+import com.OCP.Gestion_Stages.Service.interfaces.StagiaireService;
 import com.OCP.Gestion_Stages.domain.dto.stagiaire.StagiaireRequest;
 import com.OCP.Gestion_Stages.domain.dto.stagiaire.StagiaireResponse;
 import com.OCP.Gestion_Stages.domain.model.Etablissement;
 import com.OCP.Gestion_Stages.domain.model.Stagiaire;
-import com.OCP.Gestion_Stages.exeptions.BusinessException;
 import com.OCP.Gestion_Stages.exeptions.ResourceNotFoundException;
-import com.OCP.Gestion_Stages.Repository.EtablissementRepository;
-import com.OCP.Gestion_Stages.Repository.StagiaireRepository;
-import com.OCP.Gestion_Stages.Service.interfaces.StagiaireService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -26,64 +24,46 @@ public class StagiaireServiceImpl implements StagiaireService {
     private final EtablissementRepository etablissementRepository;
 
     @Override
-    public StagiaireResponse createStagiaire(StagiaireRequest request) {
-        if (stagiaireRepository.findByEmail(request.getEmail()).isPresent())
-            throw new BusinessException("Email déjà utilisé : " + request.getEmail());
+    public List<StagiaireResponse> findAll() {
+        return stagiaireRepository.findAll()
+                .stream().map(this::toResponse).collect(Collectors.toList());
+    }
 
-        Etablissement etablissement = null;
-        if (request.getEtablissementId() != null)
-            etablissement = etablissementRepository.findById(request.getEtablissementId())
-                    .orElseThrow(() -> new ResourceNotFoundException("Etablissement", request.getEtablissementId()));
+    @Override
+    public StagiaireResponse findById(Long id) {
+        return toResponse(stagiaireRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Stagiaire introuvable : " + id)));
+    }
 
-        Stagiaire stagiaire = Stagiaire.builder()
-                .nom(request.getNom())
-                .prenom(request.getPrenom())
-                .email(request.getEmail())
-                .telephone(request.getTelephone())
-                .cin(request.getCin())
-                .etablissement(etablissement)
-                .filiere(request.getFiliere())
-                .niveau(request.getNiveau())
-                .build();
-
+    @Override
+    public StagiaireResponse create(StagiaireRequest request) {
+        Stagiaire stagiaire = new Stagiaire();
+        mapToEntity(request, stagiaire);
         return toResponse(stagiaireRepository.save(stagiaire));
     }
 
     @Override
-    @Transactional(readOnly = true)
-    public StagiaireResponse getStagiaireById(Long id) {
-        return toResponse(stagiaireRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Stagiaire", id)));
-    }
-
-    @Override
-    @Transactional(readOnly = true)
-    public StagiaireResponse getStagiaireByEmail(String email) {
-        return toResponse(stagiaireRepository.findByEmail(email)
-                .orElseThrow(() -> new ResourceNotFoundException("Stagiaire introuvable : " + email)));
-    }
-
-    @Override
-    @Transactional(readOnly = true)
-    public List<StagiaireResponse> getAllStagiaires() {
-        return stagiaireRepository.findAll().stream()
-                .map(this::toResponse)
-                .collect(Collectors.toList());
-    }
-
-    @Override
-    @Transactional(readOnly = true)
-    public List<StagiaireResponse> searchStagiaires(String keyword) {
-        return stagiaireRepository.searchByKeyword(keyword).stream()
-                .map(this::toResponse)
-                .collect(Collectors.toList());
-    }
-
-    @Override
-    public StagiaireResponse updateStagiaire(Long id, StagiaireRequest request) {
+    public StagiaireResponse update(Long id, StagiaireRequest request) {
         Stagiaire stagiaire = stagiaireRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Stagiaire", id));
+                .orElseThrow(() -> new ResourceNotFoundException("Stagiaire introuvable : " + id));
+        mapToEntity(request, stagiaire);
+        return toResponse(stagiaireRepository.save(stagiaire));
+    }
 
+    @Override
+    public void delete(Long id) {
+        if (!stagiaireRepository.existsById(id))
+            throw new ResourceNotFoundException("Stagiaire introuvable : " + id);
+        stagiaireRepository.deleteById(id);
+    }
+
+    @Override
+    public List<StagiaireResponse> search(String keyword) {
+        return stagiaireRepository.findByNomContainingIgnoreCaseOrPrenomContainingIgnoreCase(keyword, keyword)
+                .stream().map(this::toResponse).collect(Collectors.toList());
+    }
+
+    private void mapToEntity(StagiaireRequest request, Stagiaire stagiaire) {
         stagiaire.setNom(request.getNom());
         stagiaire.setPrenom(request.getPrenom());
         stagiaire.setEmail(request.getEmail());
@@ -91,35 +71,28 @@ public class StagiaireServiceImpl implements StagiaireService {
         stagiaire.setCin(request.getCin());
         stagiaire.setFiliere(request.getFiliere());
         stagiaire.setNiveau(request.getNiveau());
-
         if (request.getEtablissementId() != null) {
             Etablissement etab = etablissementRepository.findById(request.getEtablissementId())
-                    .orElseThrow(() -> new ResourceNotFoundException("Etablissement", request.getEtablissementId()));
+                    .orElseThrow(() -> new ResourceNotFoundException("Etablissement introuvable"));
             stagiaire.setEtablissement(etab);
         }
-
-        return toResponse(stagiaireRepository.save(stagiaire));
-    }
-
-    @Override
-    public void deleteStagiaire(Long id) {
-        if (!stagiaireRepository.existsById(id))
-            throw new ResourceNotFoundException("Stagiaire", id);
-        stagiaireRepository.deleteById(id);
     }
 
     private StagiaireResponse toResponse(Stagiaire s) {
-        return StagiaireResponse.builder()
-                .id(s.getId())
-                .nom(s.getNom())
-                .prenom(s.getPrenom())
-                .email(s.getEmail())
-                .telephone(s.getTelephone())
-                .cin(s.getCin())
-                .etablissementNom(s.getEtablissement() != null ? s.getEtablissement().getNom() : null)
-                .filiere(s.getFiliere())
-                .niveau(s.getNiveau())
-                .createdAt(s.getCreatedAt())
-                .build();
+        StagiaireResponse response = new StagiaireResponse();
+        response.setId(s.getId());
+        response.setNom(s.getNom());
+        response.setPrenom(s.getPrenom());
+        response.setEmail(s.getEmail());
+        response.setTelephone(s.getTelephone());
+        response.setCin(s.getCin());
+        response.setFiliere(s.getFiliere());
+        response.setNiveau(s.getNiveau());
+        response.setCreatedAt(s.getCreatedAt());
+        if (s.getEtablissement() != null) {
+            response.setEtablissementNom(s.getEtablissement().getNom());
+            response.setEtablissementId(s.getEtablissement().getId());
+        }
+        return response;
     }
 }

@@ -1,24 +1,20 @@
 package com.OCP.Gestion_Stages.domain.dto.evaluation;
 
-
 import com.OCP.Gestion_Stages.domain.enums.TypeEvaluation;
-import lombok.AllArgsConstructor;
-import lombok.Builder;
 import lombok.Data;
-import lombok.NoArgsConstructor;
-import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 
 @Data
-@Builder
-@NoArgsConstructor
-@AllArgsConstructor
 public class EvaluationResponse {
     private Long id;
     private Long stageId;
+    private String stageSujet;
+    private Long encadrantId;
     private String encadrantNom;
-    private BigDecimal note;
+    private Double note;
     private String commentaire;
-    private TypeEvaluation typeEval;
+    private TypeEvaluation typeEvaluation;
     private LocalDate dateEval;
+    private LocalDateTime createdAt;
 }

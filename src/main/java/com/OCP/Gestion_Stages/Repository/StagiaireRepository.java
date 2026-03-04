@@ -14,7 +14,8 @@ public interface StagiaireRepository extends JpaRepository<Stagiaire, Long> {
     Optional<Stagiaire> findByCin(String cin);
     Optional<Stagiaire> findByUserId(Long userId);
     List<Stagiaire> findByEtablissementId(Long etablissementId);
-
+    boolean existsByEmail(String email);
+    List<Stagiaire> findByNomContainingIgnoreCaseOrPrenomContainingIgnoreCase(String nom, String prenom);
     @Query("SELECT s FROM Stagiaire s WHERE " +
             "LOWER(s.nom) LIKE LOWER(CONCAT('%', :keyword, '%')) OR " +
             "LOWER(s.prenom) LIKE LOWER(CONCAT('%', :keyword, '%')) OR " +

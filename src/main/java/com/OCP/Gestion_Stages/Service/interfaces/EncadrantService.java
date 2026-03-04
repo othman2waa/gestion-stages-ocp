@@ -1,14 +1,14 @@
 package com.OCP.Gestion_Stages.Service.interfaces;
 
-
-import com.OCP.Gestion_Stages.domain.dto.stagiaire.StagiaireResponse;
-import com.OCP.Gestion_Stages.domain.model.Encadrant;
+import com.OCP.Gestion_Stages.domain.dto.encadrant.EncadrantRequest;
+import com.OCP.Gestion_Stages.domain.dto.encadrant.EncadrantResponse;
 import java.util.List;
 
 public interface EncadrantService {
-    Encadrant getEncadrantById(Long id);
-    Encadrant getEncadrantByEmail(String email);
-    List<Encadrant> getAllEncadrants();
-    List<Encadrant> getEncadrantsByDepartement(Long departementId);
-    List<StagiaireResponse> getStagiairesByEncadrant(Long encadrantId);
+    List<EncadrantResponse> findAll();
+    EncadrantResponse findById(Long id);
+    EncadrantResponse create(EncadrantRequest request);
+    EncadrantResponse update(Long id, EncadrantRequest request);
+    void delete(Long id);
+    List<EncadrantResponse> findByDepartement(Long departementId);
 }
