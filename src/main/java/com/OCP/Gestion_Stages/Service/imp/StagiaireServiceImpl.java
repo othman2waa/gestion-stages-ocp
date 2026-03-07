@@ -2,6 +2,7 @@ package com.OCP.Gestion_Stages.Service.imp;
 
 import com.OCP.Gestion_Stages.Repository.EtablissementRepository;
 import com.OCP.Gestion_Stages.Repository.StagiaireRepository;
+import com.OCP.Gestion_Stages.Service.EmailService;
 import com.OCP.Gestion_Stages.Service.interfaces.StagiaireService;
 import com.OCP.Gestion_Stages.domain.dto.stagiaire.StagiaireRequest;
 import com.OCP.Gestion_Stages.domain.dto.stagiaire.StagiaireResponse;
@@ -9,6 +10,7 @@ import com.OCP.Gestion_Stages.domain.model.Etablissement;
 import com.OCP.Gestion_Stages.domain.model.Stagiaire;
 import com.OCP.Gestion_Stages.exeptions.ResourceNotFoundException;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -18,10 +20,12 @@ import java.util.stream.Collectors;
 @Service
 @RequiredArgsConstructor
 @Transactional
+@Slf4j
 public class StagiaireServiceImpl implements StagiaireService {
 
     private final StagiaireRepository stagiaireRepository;
     private final EtablissementRepository etablissementRepository;
+    private final EmailService emailService;
 
     @Override
     public List<StagiaireResponse> findAll() {
@@ -39,7 +43,18 @@ public class StagiaireServiceImpl implements StagiaireService {
     public StagiaireResponse create(StagiaireRequest request) {
         Stagiaire stagiaire = new Stagiaire();
         mapToEntity(request, stagiaire);
-        return toResponse(stagiaireRepository.save(stagiaire));
+        StagiaireResponse response = toResponse(stagiaireRepository.save(stagiaire));
+
+        try {
+            emailService.envoyerBienvenue(
+                    request.getEmail(),
+                    request.getPrenom() + " " + request.getNom()
+            );
+        } catch (Exception e) {
+            log.warn("Email de bienvenue non envoyé : {}", e.getMessage());
+        }
+
+        return response;
     }
 
     @Override

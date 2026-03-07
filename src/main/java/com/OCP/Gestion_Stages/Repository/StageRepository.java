@@ -8,6 +8,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.stereotype.Repository;
 import java.util.List;
+import java.time.LocalDate;
 
 @Repository
 public interface StageRepository extends JpaRepository<Stage, Long> {
@@ -16,6 +17,7 @@ public interface StageRepository extends JpaRepository<Stage, Long> {
     List<Stage> findByDepartementId(Long departementId);
     List<Stage> findByStatut(StageStatus statut);
     List<Stage> findByTypeStage(TypeStage typeStage);
+    List<Stage> findByDateFinAndStatut(LocalDate dateFin, StageStatus statut);
 
     @Query("SELECT s.departement.nom, COUNT(s) FROM Stage s GROUP BY s.departement.nom")
     List<Object[]> countByDepartement();
