@@ -82,8 +82,27 @@ public class ConventionServiceImpl implements ConventionService {
         response.setDateEmission(c.getDateEmission());
         response.setCreatedAt(c.getCreatedAt());
         if (c.getStage() != null) {
-            response.setStageId(c.getStage().getId());
-            response.setStageSujet(c.getStage().getSujet());
+            Stage s = c.getStage();
+            response.setStageId(s.getId());
+            response.setStageSujet(s.getSujet());
+            response.setStageDebut(s.getDateDebut());
+            response.setStageFin(s.getDateFin());
+            response.setTypeStage(s.getTypeStage() != null ? s.getTypeStage().name() : "");
+            if (s.getStagiaire() != null) {
+                response.setStagiaireNom(s.getStagiaire().getPrenom() + " " + s.getStagiaire().getNom());
+                response.setStagiaireEmail(s.getStagiaire().getEmail());
+                response.setStagiaireCin(s.getStagiaire().getCin());
+                response.setStagiaireFiliere(s.getStagiaire().getFiliere());
+                response.setStagiaireNiveau(s.getStagiaire().getNiveau());
+                if (s.getStagiaire().getEtablissement() != null)
+                    response.setStagiaireEtablissement(s.getStagiaire().getEtablissement().getNom());
+            }
+            if (s.getEncadrant() != null) {
+                response.setEncadrantNom(s.getEncadrant().getPrenom() + " " + s.getEncadrant().getNom());
+                response.setEncadrantEmail(s.getEncadrant().getEmail());
+            }
+            if (s.getDepartement() != null)
+                response.setDepartementNom(s.getDepartement().getNom());
         }
         return response;
     }

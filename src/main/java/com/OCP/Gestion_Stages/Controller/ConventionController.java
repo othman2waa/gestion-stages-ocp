@@ -1,10 +1,13 @@
 package com.OCP.Gestion_Stages.Controller;
 
+import com.OCP.Gestion_Stages.Service.ConventionPdfService;
 import com.OCP.Gestion_Stages.Service.interfaces.ConventionService;
 import com.OCP.Gestion_Stages.domain.dto.convention.ConventionRequest;
 import com.OCP.Gestion_Stages.domain.dto.convention.ConventionResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
@@ -17,6 +20,7 @@ import java.util.List;
 public class ConventionController {
 
     private final ConventionService conventionService;
+    private final ConventionPdfService conventionPdfService;
 
     @GetMapping
     @PreAuthorize("hasAnyRole('ADMIN_RH','RESPONSABLE_RH')")
@@ -54,5 +58,17 @@ public class ConventionController {
     @PreAuthorize("hasAnyRole('ADMIN_RH','RESPONSABLE_RH')")
     public ResponseEntity<ConventionResponse> getByStage(@PathVariable Long stageId) {
         return ResponseEntity.ok(conventionService.findByStage(stageId));
+    }
+
+    @GetMapping("/{id}/pdf")
+    @PreAuthorize("hasAnyRole('ADMIN_RH','RESPONSABLE_RH')")
+    public ResponseEntity<byte[]> genererPdf(@PathVariable Long id) {
+        ConventionResponse convention = conventionService.findById(id);
+        byte[] pdf = conventionPdfService.genererPdf(convention);
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION,
+                        "attachment; filename=\"convention-" + convention.getNumero() + ".pdf\"")
+                .contentType(MediaType.APPLICATION_PDF)
+                .body(pdf);
     }
 }
