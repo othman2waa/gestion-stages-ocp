@@ -6,6 +6,10 @@ import com.OCP.Gestion_Stages.domain.dto.stage.StageResponse;
 import com.OCP.Gestion_Stages.domain.enums.StageStatus;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
@@ -68,5 +72,21 @@ public class StageController {
     @PreAuthorize("hasAnyRole('ADMIN_RH','RESPONSABLE_RH','ENCADRANT')")
     public ResponseEntity<List<StageResponse>> getByEncadrant(@PathVariable Long encadrantId) {
         return ResponseEntity.ok(stageService.findByEncadrant(encadrantId));
+    }
+    @GetMapping("/rechercher")
+    @PreAuthorize("hasAnyRole('ADMIN_RH','RESPONSABLE_RH','ENCADRANT')")
+    public ResponseEntity<Page<StageResponse>> rechercher(
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) StageStatus statut,
+            @RequestParam(required = false) String typeStage,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size,
+            @RequestParam(defaultValue = "createdAt") String sortBy,
+            @RequestParam(defaultValue = "desc") String sortDir) {
+
+        Pageable pageable = PageRequest.of(page, size,
+                sortDir.equals("asc") ? Sort.by(sortBy).ascending() : Sort.by(sortBy).descending());
+
+        return ResponseEntity.ok(stageService.rechercher(keyword, statut, typeStage, null, pageable));
     }
 }

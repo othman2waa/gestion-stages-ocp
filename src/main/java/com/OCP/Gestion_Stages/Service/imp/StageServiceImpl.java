@@ -10,7 +10,9 @@ import com.OCP.Gestion_Stages.exeptions.ResourceNotFoundException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
+import com.OCP.Gestion_Stages.domain.enums.TypeStage;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -23,7 +25,15 @@ public class StageServiceImpl implements StageService {
     private final StagiaireRepository stagiaireRepository;
     private final EncadrantRepository encadrantRepository;
     private final DepartementRepository departementRepository;
-
+    @Override
+    public Page<StageResponse> rechercher(String keyword, StageStatus statut, String typeStage, Long departementId, Pageable pageable) {
+        TypeStage type = null;
+        if (typeStage != null && !typeStage.isEmpty()) {
+            try { type = TypeStage.valueOf(typeStage); } catch (Exception ignored) {}
+        }
+        return stageRepository.rechercher(keyword, statut, type, departementId, pageable)
+                .map(this::toResponse);
+    }
     @Override
     public List<StageResponse> findAll() {
         return stageRepository.findAll()
