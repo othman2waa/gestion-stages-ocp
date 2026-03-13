@@ -7,8 +7,10 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
-
+import com.OCP.Gestion_Stages.domain.dto.stagiaire.MonDashboardResponse;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import java.util.List;
 
 @RestController
@@ -54,5 +56,11 @@ public class StagiaireController {
     @PreAuthorize("hasAnyRole('ADMIN_RH','RESPONSABLE_RH','ENCADRANT')")
     public ResponseEntity<List<StagiaireResponse>> search(@RequestParam String keyword) {
         return ResponseEntity.ok(stagiaireService.search(keyword));
+    }
+    @GetMapping("/mon-dashboard")
+    @PreAuthorize("hasRole('STAGIAIRE')")
+    public ResponseEntity<MonDashboardResponse> getMonDashboard(
+            @AuthenticationPrincipal UserDetails userDetails) {
+        return ResponseEntity.ok(stagiaireService.getMonDashboard(userDetails.getUsername()));
     }
 }
