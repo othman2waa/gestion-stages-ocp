@@ -68,7 +68,7 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                 .body(ErrorResponse.builder()
                         .status(500)
-                        .message("Une erreur interne est survenue")
+                        .message(ex.getClass().getSimpleName() + ": " + ex.getMessage())
                         .path(request.getRequestURI())
                         .timestamp(LocalDateTime.now())
                         .build());
