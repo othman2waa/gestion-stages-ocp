@@ -1,9 +1,12 @@
 package com.OCP.Gestion_Stages.Controller;
 
+import com.OCP.Gestion_Stages.Repository.UserRepository;
 import com.OCP.Gestion_Stages.Service.interfaces.StageService;
 import com.OCP.Gestion_Stages.domain.dto.stage.StageRequest;
 import com.OCP.Gestion_Stages.domain.dto.stage.StageResponse;
 import com.OCP.Gestion_Stages.domain.enums.StageStatus;
+import com.OCP.Gestion_Stages.domain.model.User;
+import com.OCP.Gestion_Stages.exeptions.ResourceNotFoundException;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -12,6 +15,8 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -22,6 +27,7 @@ import java.util.List;
 public class StageController {
 
     private final StageService stageService;
+    private final UserRepository userRepository;
 
     @GetMapping
     @PreAuthorize("hasAnyRole('ADMIN_RH','RESPONSABLE_RH','ENCADRANT')")
@@ -73,6 +79,7 @@ public class StageController {
     public ResponseEntity<List<StageResponse>> getByEncadrant(@PathVariable Long encadrantId) {
         return ResponseEntity.ok(stageService.findByEncadrant(encadrantId));
     }
+
     @GetMapping("/rechercher")
     @PreAuthorize("hasAnyRole('ADMIN_RH','RESPONSABLE_RH','ENCADRANT')")
     public ResponseEntity<Page<StageResponse>> rechercher(
@@ -88,5 +95,14 @@ public class StageController {
                 sortDir.equals("asc") ? Sort.by(sortBy).ascending() : Sort.by(sortBy).descending());
 
         return ResponseEntity.ok(stageService.rechercher(keyword, statut, typeStage, null, pageable));
+    }
+
+    @GetMapping("/mes-stages")
+    @PreAuthorize("hasAnyRole('ENCADRANT','ADMIN_RH','RESPONSABLE_RH')")
+    public ResponseEntity<List<StageResponse>> getMesStages(
+            @AuthenticationPrincipal UserDetails userDetails) {
+        User encadrant = userRepository.findByUsername(userDetails.getUsername())
+                .orElseThrow(() -> new ResourceNotFoundException("Utilisateur introuvable"));
+        return ResponseEntity.ok(stageService.findByEncadrant(encadrant.getId()));
     }
 }
