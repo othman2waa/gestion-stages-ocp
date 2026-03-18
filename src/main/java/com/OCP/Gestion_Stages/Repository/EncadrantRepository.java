@@ -12,4 +12,5 @@ public interface EncadrantRepository extends JpaRepository<Encadrant, Long> {
     Optional<Encadrant> findByEmail(String email);
     Optional<Encadrant> findByUserId(Long userId);
     List<Encadrant> findByDepartementId(Long departementId);
+
 }

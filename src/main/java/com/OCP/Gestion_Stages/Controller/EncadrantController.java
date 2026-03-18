@@ -3,10 +3,13 @@ package com.OCP.Gestion_Stages.Controller;
 import com.OCP.Gestion_Stages.Service.interfaces.EncadrantService;
 import com.OCP.Gestion_Stages.domain.dto.encadrant.EncadrantRequest;
 import com.OCP.Gestion_Stages.domain.dto.encadrant.EncadrantResponse;
+import com.OCP.Gestion_Stages.domain.dto.encadrant.MonProfilEncadrantResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -54,5 +57,12 @@ public class EncadrantController {
     @PreAuthorize("hasAnyRole('ADMIN_RH','RESPONSABLE_RH')")
     public ResponseEntity<List<EncadrantResponse>> getByDepartement(@PathVariable Long departementId) {
         return ResponseEntity.ok(encadrantService.findByDepartement(departementId));
+    }
+
+    @GetMapping("/mon-profil")
+    @PreAuthorize("hasAnyRole('ENCADRANT','ADMIN_RH','RESPONSABLE_RH')")
+    public ResponseEntity<MonProfilEncadrantResponse> getMonProfil(
+            @AuthenticationPrincipal UserDetails userDetails) {
+        return ResponseEntity.ok(encadrantService.getMonProfil(userDetails.getUsername()));
     }
 }
