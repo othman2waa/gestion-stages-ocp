@@ -11,4 +11,6 @@ public interface EvaluationService {
     EvaluationResponse update(Long id, EvaluationRequest request);
     void delete(Long id);
     List<EvaluationResponse> findByStage(Long stageId);
+    List<EvaluationResponse> getMesEvaluationsStagiaire(String username);
+    List<EvaluationResponse> getMesEvaluationsEncadrant(String username);
 }

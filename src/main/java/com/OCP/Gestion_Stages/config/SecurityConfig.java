@@ -34,12 +34,13 @@ public class SecurityConfig {
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .authorizeHttpRequests(auth -> auth
                         // ✅ Routes publiques — TOUJOURS en premier
+                       
+
                         .requestMatchers(
                                 "/api/auth/**",
+                                "/api/candidatures",
                                 "/swagger-ui/**",
-                                "/swagger-ui.html",
-                                "/v3/api-docs/**",
-                                "/v3/api-docs.yaml"
+                                "/v3/api-docs/**"
                         ).permitAll()
                         // ✅ Routes par rôle
                         .requestMatchers("/api/admin/**").hasRole("ADMIN_RH")

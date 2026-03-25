@@ -5,6 +5,7 @@ import com.OCP.Gestion_Stages.Service.interfaces.StageService;
 import com.OCP.Gestion_Stages.domain.dto.stage.StageRequest;
 import com.OCP.Gestion_Stages.domain.dto.stage.StageResponse;
 import com.OCP.Gestion_Stages.domain.enums.StageStatus;
+import com.OCP.Gestion_Stages.domain.model.Encadrant;
 import com.OCP.Gestion_Stages.domain.model.User;
 import com.OCP.Gestion_Stages.exeptions.ResourceNotFoundException;
 import jakarta.validation.Valid;
@@ -18,6 +19,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
+import com.OCP.Gestion_Stages.Repository.EncadrantRepository;
 
 import java.util.List;
 
@@ -28,7 +30,7 @@ public class StageController {
 
     private final StageService stageService;
     private final UserRepository userRepository;
-
+    private final EncadrantRepository encadrantRepository;
     @GetMapping
     @PreAuthorize("hasAnyRole('ADMIN_RH','RESPONSABLE_RH','ENCADRANT')")
     public ResponseEntity<List<StageResponse>> getAll() {
@@ -101,8 +103,10 @@ public class StageController {
     @PreAuthorize("hasAnyRole('ENCADRANT','ADMIN_RH','RESPONSABLE_RH')")
     public ResponseEntity<List<StageResponse>> getMesStages(
             @AuthenticationPrincipal UserDetails userDetails) {
-        User encadrant = userRepository.findByUsername(userDetails.getUsername())
+        User user = userRepository.findByUsername(userDetails.getUsername())
                 .orElseThrow(() -> new ResourceNotFoundException("Utilisateur introuvable"));
+        Encadrant encadrant = encadrantRepository.findByUserId(user.getId())
+                .orElseThrow(() -> new ResourceNotFoundException("Profil encadrant introuvable"));
         return ResponseEntity.ok(stageService.findByEncadrant(encadrant.getId()));
     }
 }

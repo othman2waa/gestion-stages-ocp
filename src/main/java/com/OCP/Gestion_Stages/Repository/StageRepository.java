@@ -36,17 +36,17 @@ public interface StageRepository extends JpaRepository<Stage, Long> {
     List<Stage> findByEncadrantIdAndStatut(Long encadrantId, StageStatus statut);
 
     @Query("""
-    SELECT s FROM Stage s
-    LEFT JOIN s.stagiaire st
-    LEFT JOIN s.encadrant e
-    LEFT JOIN s.departement d
-    WHERE (:keyword IS NULL OR LOWER(s.sujet) LIKE LOWER(CONCAT('%', :keyword, '%'))
-        OR LOWER(st.nom) LIKE LOWER(CONCAT('%', :keyword, '%'))
-        OR LOWER(st.prenom) LIKE LOWER(CONCAT('%', :keyword, '%')))
-    AND (:statut IS NULL OR s.statut = :statut)
-    AND (:typeStage IS NULL OR s.typeStage = :typeStage)
-    AND (:departementId IS NULL OR d.id = :departementId)
-    """)
+SELECT s FROM Stage s
+LEFT JOIN s.stagiaire st
+LEFT JOIN s.encadrant e
+LEFT JOIN s.departement d
+WHERE (:keyword IS NULL OR LOWER(s.sujet) LIKE LOWER(CONCAT('%', :keyword, '%'))
+    OR LOWER(CAST(st.nom AS string)) LIKE LOWER(CONCAT('%', :keyword, '%'))
+    OR LOWER(CAST(st.prenom AS string)) LIKE LOWER(CONCAT('%', :keyword, '%')))
+AND (:statut IS NULL OR s.statut = :statut)
+AND (:typeStage IS NULL OR s.typeStage = :typeStage)
+AND (:departementId IS NULL OR d.id = :departementId)
+""")
     Page<Stage> rechercher(
             @Param("keyword") String keyword,
             @Param("statut") StageStatus statut,

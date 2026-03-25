@@ -22,13 +22,13 @@ public class EncadrantController {
     private final EncadrantService encadrantService;
 
     @GetMapping
-    @PreAuthorize("hasAnyRole('ADMIN_RH','RESPONSABLE_RH')")
-    public ResponseEntity<List<EncadrantResponse>> getAll() {
+    @PreAuthorize("hasAnyRole('ADMIN_RH','RESPONSABLE_RH','ENCADRANT')")
+     public ResponseEntity<List<EncadrantResponse>> getAll() {
         return ResponseEntity.ok(encadrantService.findAll());
     }
 
     @GetMapping("/{id}")
-    @PreAuthorize("hasAnyRole('ADMIN_RH','RESPONSABLE_RH')")
+    @PreAuthorize("hasAnyRole('ADMIN_RH','RESPONSABLE_RH','ENCADRANT')")
     public ResponseEntity<EncadrantResponse> getById(@PathVariable Long id) {
         return ResponseEntity.ok(encadrantService.findById(id));
     }

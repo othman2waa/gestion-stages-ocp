@@ -1,14 +1,10 @@
 package com.OCP.Gestion_Stages.Service.imp;
 
-import com.OCP.Gestion_Stages.Repository.EncadrantRepository;
-import com.OCP.Gestion_Stages.Repository.EvaluationRepository;
-import com.OCP.Gestion_Stages.Repository.StageRepository;
+import com.OCP.Gestion_Stages.Repository.*;
 import com.OCP.Gestion_Stages.Service.interfaces.EvaluationService;
 import com.OCP.Gestion_Stages.domain.dto.evaluation.EvaluationRequest;
 import com.OCP.Gestion_Stages.domain.dto.evaluation.EvaluationResponse;
-import com.OCP.Gestion_Stages.domain.model.Encadrant;
-import com.OCP.Gestion_Stages.domain.model.Evaluation;
-import com.OCP.Gestion_Stages.domain.model.Stage;
+import com.OCP.Gestion_Stages.domain.model.*;
 import com.OCP.Gestion_Stages.exeptions.ResourceNotFoundException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -25,7 +21,8 @@ public class EvaluationServiceImpl implements EvaluationService {
     private final EvaluationRepository evaluationRepository;
     private final StageRepository stageRepository;
     private final EncadrantRepository encadrantRepository;
-
+    private final UserRepository userRepository;
+    private final StagiaireRepository stagiaireRepository;
     @Override
     public List<EvaluationResponse> findAll() {
         return evaluationRepository.findAll()
@@ -100,5 +97,27 @@ public class EvaluationServiceImpl implements EvaluationService {
             response.setEncadrantNom(e.getEncadrant().getNom() + " " + e.getEncadrant().getPrenom());
         }
         return response;
+    }
+    @Override
+    public List<EvaluationResponse> getMesEvaluationsStagiaire(String username) {
+        User user = userRepository.findByUsername(username)
+                .orElseThrow(() -> new ResourceNotFoundException("Utilisateur introuvable"));
+        Stagiaire stagiaire = stagiaireRepository.findByUserId(user.getId())
+                .orElseThrow(() -> new ResourceNotFoundException("Stagiaire introuvable"));
+        List<Stage> stages = stageRepository.findByStagiaireId(stagiaire.getId());
+        return stages.stream()
+                .flatMap(s -> evaluationRepository.findByStageId(s.getId()).stream())
+                .map(this::toResponse)
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    public List<EvaluationResponse> getMesEvaluationsEncadrant(String username) {
+        User user = userRepository.findByUsername(username)
+                .orElseThrow(() -> new ResourceNotFoundException("Utilisateur introuvable"));
+        Encadrant encadrant = encadrantRepository.findByUserId(user.getId())
+                .orElseThrow(() -> new ResourceNotFoundException("Encadrant introuvable"));
+        return evaluationRepository.findByEncadrantId(encadrant.getId())
+                .stream().map(this::toResponse).collect(Collectors.toList());
     }
 }
