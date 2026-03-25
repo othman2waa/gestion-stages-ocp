@@ -78,6 +78,24 @@ public class EvaluationServiceImpl implements EvaluationService {
         evaluation.setTypeEval(request.getTypeEvaluation());
         if (request.getDateEval() != null)
             evaluation.setDateEval(request.getDateEval());
+
+        // Changement statut automatique
+        if (request.getTypeEvaluation() != null) {
+            switch (request.getTypeEvaluation()) {
+                case FIN_STAGE -> {
+                    stage.setStatut(com.OCP.Gestion_Stages.domain.enums.StageStatus.EN_ATTENTE_EVALUATION);
+                    stageRepository.save(stage);
+                }
+                case MI_PARCOURS -> {
+                    if (stage.getStatut() == com.OCP.Gestion_Stages.domain.enums.StageStatus.CONVENTION_SIGNEE
+                            || stage.getStatut() == com.OCP.Gestion_Stages.domain.enums.StageStatus.VALIDEE) {
+                        stage.setStatut(com.OCP.Gestion_Stages.domain.enums.StageStatus.EN_COURS);
+                        stageRepository.save(stage);
+                    }
+                }
+                default -> {}
+            }
+        }
     }
 
     private EvaluationResponse toResponse(Evaluation e) {

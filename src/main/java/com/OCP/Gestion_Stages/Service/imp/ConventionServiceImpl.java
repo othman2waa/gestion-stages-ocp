@@ -11,7 +11,8 @@ import com.OCP.Gestion_Stages.exeptions.ResourceNotFoundException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
+import com.OCP.Gestion_Stages.domain.enums.ConventionStatus;
+import com.OCP.Gestion_Stages.domain.enums.StageStatus;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -68,10 +69,30 @@ public class ConventionServiceImpl implements ConventionService {
                 .orElseThrow(() -> new ResourceNotFoundException("Stage introuvable"));
         convention.setStage(stage);
         convention.setNumero(request.getNumero());
-        if (request.getStatut() != null)
+
+        if (request.getStatut() != null) {
             convention.setStatut(request.getStatut());
+            // Changement statut automatique
+            mettreAJourStatutStage(stage, request.getStatut());
+        }
         if (request.getDateEmission() != null)
             convention.setDateEmission(request.getDateEmission());
+    }
+
+    private void mettreAJourStatutStage(Stage stage, ConventionStatus statut) {
+        switch (statut) {
+            case EN_VALIDATION -> stage.setStatut(StageStatus.CONVENTION_GENEREE);
+            case SIGNEE -> {
+                if (stage.getDateDebut() != null && !stage.getDateDebut().isAfter(java.time.LocalDate.now())) {
+                    stage.setStatut(StageStatus.EN_COURS);
+                } else {
+                    stage.setStatut(StageStatus.CONVENTION_SIGNEE);
+                }
+            }
+            case ARCHIVEE -> stage.setStatut(StageStatus.TERMINE);
+            default -> {}
+        }
+        stageRepository.save(stage);
     }
 
     private ConventionResponse toResponse(Convention c) {

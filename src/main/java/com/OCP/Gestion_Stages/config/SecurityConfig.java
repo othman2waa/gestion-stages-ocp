@@ -34,7 +34,7 @@ public class SecurityConfig {
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .authorizeHttpRequests(auth -> auth
                         // ✅ Routes publiques — TOUJOURS en premier
-                       
+
 
                         .requestMatchers(
                                 "/api/auth/**",
