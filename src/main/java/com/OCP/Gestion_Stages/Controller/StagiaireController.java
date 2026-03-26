@@ -12,6 +12,8 @@ import org.springframework.web.bind.annotation.*;
 import com.OCP.Gestion_Stages.domain.dto.stagiaire.MonDashboardResponse;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import java.util.List;
+import java.util.Map;
+
 
 @RestController
 @RequestMapping("/api/stagiaires")
@@ -63,4 +65,32 @@ public class StagiaireController {
             @AuthenticationPrincipal UserDetails userDetails) {
         return ResponseEntity.ok(stagiaireService.getMonDashboard(userDetails.getUsername()));
     }
+
+    @PatchMapping("/{id}/activer")
+    @PreAuthorize("hasRole('ADMIN_RH')")
+    public ResponseEntity<Void> activerCompte(@PathVariable Long id) {
+        stagiaireService.activerCompte(id);
+        return ResponseEntity.ok().build();
+    }
+
+    @PatchMapping("/{id}/desactiver")
+    @PreAuthorize("hasRole('ADMIN_RH')")
+    public ResponseEntity<Void> desactiverCompte(@PathVariable Long id) {
+        stagiaireService.desactiverCompte(id);
+        return ResponseEntity.ok().build();
+    }
+
+    @PatchMapping("/{id}/reset-password")
+    @PreAuthorize("hasRole('ADMIN_RH')")
+    public ResponseEntity<Map<String, String>> resetPassword(@PathVariable Long id) {
+        String newPassword = stagiaireService.resetPassword(id);
+        return ResponseEntity.ok(Map.of("password", newPassword));
+    }
+
+    @GetMapping("/comptes")
+    @PreAuthorize("hasRole('ADMIN_RH')")
+    public ResponseEntity<List<StagiaireResponse>> getAllAvecComptes() {
+        return ResponseEntity.ok(stagiaireService.findAllAvecComptes());
+    }
+
 }

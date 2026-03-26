@@ -13,4 +13,9 @@ public interface StagiaireService {
     MonDashboardResponse getMonDashboard(String username);
     void delete(Long id);
     List<StagiaireResponse> search(String keyword);
+
+    void activerCompte(Long stagiaireId);
+    void desactiverCompte(Long stagiaireId);
+    String resetPassword(Long stagiaireId);
+    List<StagiaireResponse> findAllAvecComptes();
 }

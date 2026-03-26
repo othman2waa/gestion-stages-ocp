@@ -11,6 +11,7 @@ import com.OCP.Gestion_Stages.domain.model.Stagiaire;
 import com.OCP.Gestion_Stages.exeptions.ResourceNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import com.OCP.Gestion_Stages.Repository.ConventionRepository;
@@ -34,6 +35,9 @@ public class StagiaireServiceImpl implements StagiaireService {
     private final StageRepository stageRepository;
     private final ConventionRepository conventionRepository;
     private final UserRepository userRepository;
+
+    private final PasswordEncoder passwordEncoder;
+
     @Override
     public List<StagiaireResponse> findAll() {
         return stagiaireRepository.findAll()
@@ -115,8 +119,84 @@ public class StagiaireServiceImpl implements StagiaireService {
             response.setEtablissementNom(s.getEtablissement().getNom());
             response.setEtablissementId(s.getEtablissement().getId());
         }
+        // Infos compte
+        if (s.getUser() != null) {
+            response.setUsername(s.getUser().getUsername());
+            response.setActif(s.getUser().getActif());
+            response.setUserId(s.getUser().getId());
+        }
         return response;
     }
+
+    @Override
+    public void activerCompte(Long stagiaireId) {
+        Stagiaire stagiaire = stagiaireRepository.findById(stagiaireId)
+                .orElseThrow(() -> new ResourceNotFoundException("Stagiaire introuvable"));
+        if (stagiaire.getUser() == null)
+            throw new ResourceNotFoundException("Ce stagiaire n'a pas de compte");
+        stagiaire.getUser().setActif(true);
+        userRepository.save(stagiaire.getUser());
+    }
+
+    @Override
+    public void desactiverCompte(Long stagiaireId) {
+        Stagiaire stagiaire = stagiaireRepository.findById(stagiaireId)
+                .orElseThrow(() -> new ResourceNotFoundException("Stagiaire introuvable"));
+        if (stagiaire.getUser() == null)
+            throw new ResourceNotFoundException("Ce stagiaire n'a pas de compte");
+        stagiaire.getUser().setActif(false);
+        userRepository.save(stagiaire.getUser());
+    }
+
+    @Override
+    public String resetPassword(Long stagiaireId) {
+        Stagiaire stagiaire = stagiaireRepository.findById(stagiaireId)
+                .orElseThrow(() -> new ResourceNotFoundException("Stagiaire introuvable"));
+        if (stagiaire.getUser() == null)
+            throw new ResourceNotFoundException("Ce stagiaire n'a pas de compte");
+        String newPassword = "OCP@" + java.util.UUID.randomUUID().toString().substring(0, 8).toUpperCase();
+        stagiaire.getUser().setPassword(passwordEncoder.encode(newPassword));
+        userRepository.save(stagiaire.getUser());
+        // Envoyer email
+        try {
+            emailService.envoyerEmail(
+                    stagiaire.getEmail(),
+                    "🔑 Réinitialisation de votre mot de passe — OCP",
+                    """
+                    <html><body style="font-family:Arial,sans-serif">
+                    <div style="max-width:600px;margin:auto;padding:20px;border:1px solid #e2e8f0;border-radius:8px">
+                    <div style="background:#00843D;padding:16px;border-radius:6px 6px 0 0;text-align:center">
+                      <h2 style="color:white;margin:0">OCP — Nouveau mot de passe</h2>
+                    </div>
+                    <div style="padding:20px">
+                      <p>Bonjour <strong>%s %s</strong>,</p>
+                      <p>Votre mot de passe a été réinitialisé par l'administrateur.</p>
+                      <div style="background:#f0fdf4;border:1px solid #86efac;border-radius:8px;padding:16px;margin:16px 0">
+                        <p><b>👤 Nom d'utilisateur :</b> %s</p>
+                        <p><b>🔑 Nouveau mot de passe :</b> %s</p>
+                      </div>
+                      <p style="color:#dc2626">⚠️ Changez votre mot de passe après connexion.</p>
+                    </div></div></body></html>
+                    """.formatted(stagiaire.getPrenom(), stagiaire.getNom(),
+                            stagiaire.getUser().getUsername(), newPassword)
+            );
+        } catch (Exception e) {
+            log.warn("Email reset password non envoyé : {}", e.getMessage());
+        }
+        return newPassword;
+    }
+
+    @Override
+    public List<StagiaireResponse> findAllAvecComptes() {
+        return stagiaireRepository.findAll()
+                .stream()
+                .filter(s -> s.getUser() != null)
+                .map(this::toResponse)
+                .collect(Collectors.toList());
+    }
+
+
+
     @Override
     public MonDashboardResponse getMonDashboard(String username) {
         User user = userRepository.findByUsername(username)
@@ -173,4 +253,8 @@ public class StagiaireServiceImpl implements StagiaireService {
             case REJETEE, ANNULE     -> 0;
         };
     }
+
+
+
+
 }

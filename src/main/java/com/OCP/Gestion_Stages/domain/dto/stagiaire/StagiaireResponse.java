@@ -16,4 +16,7 @@ public class StagiaireResponse {
     private Long etablissementId;
     private String etablissementNom;
     private LocalDateTime createdAt;
+    private String username;
+    private Boolean actif;
+    private Long userId;
 }
