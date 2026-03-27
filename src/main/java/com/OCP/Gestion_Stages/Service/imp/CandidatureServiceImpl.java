@@ -2,6 +2,7 @@ package com.OCP.Gestion_Stages.Service.imp;
 
 import com.OCP.Gestion_Stages.Repository.*;
 import com.OCP.Gestion_Stages.Service.EmailService;
+import com.OCP.Gestion_Stages.Service.OllamaService;
 import com.OCP.Gestion_Stages.Service.interfaces.CandidatureService;
 import com.OCP.Gestion_Stages.domain.dto.candidature.*;
 import com.OCP.Gestion_Stages.domain.enums.StageStatus;
@@ -35,6 +36,9 @@ public class CandidatureServiceImpl implements CandidatureService {
     private final DepartementRepository departementRepository;
     private final EmailService emailService;
     private final PasswordEncoder passwordEncoder;
+    private final AnnonceStageRepository annonceRepository;
+    private final OllamaService ollamaService;
+
 
     @Override
     public CandidatureResponse soumettre(CandidatureRequest request, MultipartFile cv) throws IOException {
@@ -50,6 +54,38 @@ public class CandidatureServiceImpl implements CandidatureService {
         c.setDepartementSouhaite(request.getDepartementSouhaite());
         c.setMessage(request.getMessage());
         c.setStatut("EN_ATTENTE");
+        if (request.getAnnonceId() != null) {
+            c.setAnnonceId(request.getAnnonceId());
+            // Calcul score matching IA si CV fourni
+            if (cv != null && !cv.isEmpty()) {
+                try {
+                    annonceRepository.findById(request.getAnnonceId()).ifPresent(annonce -> {
+                        try {
+                            org.apache.pdfbox.pdmodel.PDDocument doc =
+                                    org.apache.pdfbox.Loader.loadPDF(cv.getBytes());
+                            org.apache.pdfbox.text.PDFTextStripper stripper =
+                                    new org.apache.pdfbox.text.PDFTextStripper();
+                            String texteCV = stripper.getText(doc);
+                            doc.close();
+
+                            int score = ollamaService.calculerScoreMatching(
+                                    texteCV,
+                                    annonce.getTitre(),
+                                    annonce.getDescription(),
+                                    annonce.getCompetencesRequises(),
+                                    annonce.getNiveauRequis(),
+                                    annonce.getFiliereRequise()
+                            );
+                            c.setScoreMatching(score);
+                        } catch (Exception e) {
+                            log.warn("Erreur calcul score: {}", e.getMessage());
+                        }
+                    });
+                } catch (Exception e) {
+                    log.warn("Erreur lecture CV pour matching: {}", e.getMessage());
+                }
+            }
+        }
         if (cv != null && !cv.isEmpty()) {
             c.setCvContenu(cv.getBytes());
             c.setCvNomFichier(cv.getOriginalFilename());
@@ -245,6 +281,8 @@ public class CandidatureServiceImpl implements CandidatureService {
         r.setCreatedAt(c.getCreatedAt());
         r.setTraiteAt(c.getTraiteAt());
         r.setTraitePar(c.getTraitePar());
+        r.setScoreMatching(c.getScoreMatching());
+        r.setAnnonceId(c.getAnnonceId());
         return r;
     }
 }

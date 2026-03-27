@@ -76,4 +76,128 @@ public class OllamaService {
             throw new RuntimeException("Erreur lors de l'analyse du CV: " + e.getMessage());
         }
     }
+    public int calculerScoreMatching(String texteCV, String titreAnnonce,
+                                     String descriptionAnnonce, String competencesRequises,
+                                     String niveauRequis, String filiereRequise) {
+        String prompt = """
+        Tu es un expert RH. Analyse ce CV par rapport à cette offre de stage et donne un score de matching.
+        Réponds SEULEMENT avec un objet JSON valide.
+        
+        OFFRE DE STAGE:
+        Titre: %s
+        Description: %s
+        Compétences requises: %s
+        Niveau requis: %s
+        Filière requise: %s
+        
+        CV DU CANDIDAT:
+        %s
+        
+        Évalue le matching et réponds avec ce JSON UNIQUEMENT:
+        {
+          "score": <nombre entre 0 et 100>,
+          "competencesMatchees": ["comp1", "comp2"],
+          "competencesManquantes": ["comp3"],
+          "pointsForts": "...",
+          "pointsFaibles": "...",
+          "recommendation": "RECOMMANDE" ou "ACCEPTABLE" ou "NON_RECOMMANDE"
+        }
+        """.formatted(titreAnnonce, descriptionAnnonce, competencesRequises,
+                niveauRequis, filiereRequise, texteCV);
+
+        try {
+            Map<String, Object> body = Map.of(
+                    "model", MODEL,
+                    "prompt", prompt,
+                    "stream", false
+            );
+            String requestBody = objectMapper.writeValueAsString(body);
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create(OLLAMA_URL))
+                    .header("Content-Type", "application/json")
+                    .POST(HttpRequest.BodyPublishers.ofString(requestBody))
+                    .build();
+
+            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+            JsonNode root = objectMapper.readTree(response.body());
+            String responseText = root.get("response").asText();
+
+            int start = responseText.indexOf('{');
+            int end = responseText.lastIndexOf('}') + 1;
+            if (start >= 0 && end > start) {
+                String jsonStr = responseText.substring(start, end);
+                JsonNode result = objectMapper.readTree(jsonStr);
+                return result.has("score") ? result.get("score").asInt() : 0;
+            }
+            return 0;
+        } catch (Exception e) {
+            log.error("Erreur calcul matching: {}", e.getMessage());
+            return 0;
+        }
+    }
+
+    public Map<String, Object> analyserMatchingComplet(String texteCV, String titreAnnonce,
+                                                       String descriptionAnnonce, String competencesRequises,
+                                                       String niveauRequis, String filiereRequise) {
+        String prompt = """
+        Tu es un expert RH. Analyse ce CV par rapport à cette offre de stage.
+        Réponds SEULEMENT avec un objet JSON valide.
+        
+        OFFRE DE STAGE:
+        Titre: %s
+        Description: %s
+        Compétences requises: %s
+        Niveau requis: %s
+        Filière requise: %s
+        
+        CV DU CANDIDAT:
+        %s
+        
+        Réponds avec ce JSON UNIQUEMENT:
+        {
+          "score": <nombre entre 0 et 100>,
+          "competencesMatchees": ["comp1", "comp2"],
+          "competencesManquantes": ["comp3"],
+          "pointsForts": "...",
+          "pointsFaibles": "...",
+          "recommendation": "RECOMMANDE" ou "ACCEPTABLE" ou "NON_RECOMMANDE"
+        }
+        """.formatted(titreAnnonce, descriptionAnnonce, competencesRequises,
+                niveauRequis, filiereRequise, texteCV);
+
+        try {
+            Map<String, Object> body = Map.of(
+                    "model", MODEL,
+                    "prompt", prompt,
+                    "stream", false
+            );
+            String requestBody = objectMapper.writeValueAsString(body);
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create(OLLAMA_URL))
+                    .header("Content-Type", "application/json")
+                    .POST(HttpRequest.BodyPublishers.ofString(requestBody))
+                    .build();
+
+            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+            JsonNode root = objectMapper.readTree(response.body());
+            String responseText = root.get("response").asText();
+
+            int start = responseText.indexOf('{');
+            int end = responseText.lastIndexOf('}') + 1;
+            if (start >= 0 && end > start) {
+                String jsonStr = responseText.substring(start, end);
+                JsonNode result = objectMapper.readTree(jsonStr);
+                Map<String, Object> resultMap = new java.util.HashMap<>();
+                resultMap.put("score", result.has("score") ? result.get("score").asInt() : 0);
+                resultMap.put("pointsForts", result.has("pointsForts") ? result.get("pointsForts").asText() : "");
+                resultMap.put("pointsFaibles", result.has("pointsFaibles") ? result.get("pointsFaibles").asText() : "");
+                resultMap.put("recommendation", result.has("recommendation") ? result.get("recommendation").asText() : "");
+                return resultMap;
+            }
+            return Map.of("score", 0);
+        } catch (Exception e) {
+            log.error("Erreur analyse matching: {}", e.getMessage());
+            return Map.of("score", 0);
+        }
+    }
 }

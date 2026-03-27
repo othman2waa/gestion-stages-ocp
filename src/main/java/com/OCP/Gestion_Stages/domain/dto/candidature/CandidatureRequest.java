@@ -14,4 +14,5 @@ public class CandidatureRequest {
     private String sujetSouhaite;
     private String departementSouhaite;
     private String message;
+    private Long annonceId;
 }

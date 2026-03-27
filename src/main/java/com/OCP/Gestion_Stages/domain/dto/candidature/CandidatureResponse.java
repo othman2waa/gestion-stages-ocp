@@ -23,4 +23,6 @@ public class CandidatureResponse {
     private LocalDateTime createdAt;
     private LocalDateTime traiteAt;
     private String traitePar;
+    private Integer scoreMatching;
+    private Long annonceId;
 }

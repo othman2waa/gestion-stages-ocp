@@ -56,7 +56,14 @@ public class Candidature {
 
     @Column(name = "traite_par")
     private String traitePar;
+    @Column(name = "annonce_id")
+    private Long annonceId;
 
+    @Column(name = "score_matching")
+    private Integer scoreMatching;
+
+    @Column(name = "competences_extraites", columnDefinition = "TEXT")
+    private String competencesExtraites;
     @PrePersist
     protected void onCreate() { this.createdAt = LocalDateTime.now(); }
 }
