@@ -93,4 +93,11 @@ public class StagiaireController {
         return ResponseEntity.ok(stagiaireService.findAllAvecComptes());
     }
 
+    @GetMapping("/mes-stagiaires")
+    @PreAuthorize("hasRole('ENCADRANT')")
+    public ResponseEntity<List<StagiaireResponse>> getMesStagiaires(
+            @AuthenticationPrincipal UserDetails userDetails) {
+        return ResponseEntity.ok(stagiaireService.getMesStagiaires(userDetails.getUsername()));
+    }
+
 }

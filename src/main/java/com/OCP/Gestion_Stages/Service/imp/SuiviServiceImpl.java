@@ -72,6 +72,15 @@ public class SuiviServiceImpl implements SuiviService {
         suivi.setPointsPositifs(request.getPointsPositifs());
         suivi.setAxesAmelioration(request.getAxesAmelioration());
         suivi.setNote(request.getNote());
+        if (request.getJoursPresents() != null)
+            suivi.setJoursPresents(request.getJoursPresents());
+        if (request.getJoursAbsences() != null)
+            suivi.setJoursAbsences(request.getJoursAbsences());
+        suivi.setMotifAbsence(request.getMotifAbsence());
+        suivi.setTachesAssignees(request.getTachesAssignees());
+        suivi.setTachesCompletees(request.getTachesCompletees());
+        if (request.getTauxCompletionTaches() != null)
+            suivi.setTauxCompletionTaches(request.getTauxCompletionTaches());
     }
 
     private SuiviResponse toResponse(SuiviHebdomadaire s) {
@@ -94,6 +103,14 @@ public class SuiviServiceImpl implements SuiviService {
         }
         if (s.getEncadrant() != null)
             r.setEncadrantNom(s.getEncadrant().getUsername());
+
+        r.setJoursPresents(s.getJoursPresents());
+        r.setJoursAbsences(s.getJoursAbsences());
+        r.setMotifAbsence(s.getMotifAbsence());
+        r.setTachesAssignees(s.getTachesAssignees());
+        r.setTachesCompletees(s.getTachesCompletees());
+        r.setTauxCompletionTaches(s.getTauxCompletionTaches());
         return r;
+
     }
 }

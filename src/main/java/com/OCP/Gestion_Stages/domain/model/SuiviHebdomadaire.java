@@ -47,4 +47,22 @@ public class SuiviHebdomadaire {
 
     @PrePersist
     protected void onCreate() { this.createdAt = LocalDateTime.now(); }
+
+    @Column(name = "jours_presents")
+    private Integer joursPresents = 5;
+
+    @Column(name = "jours_absences")
+    private Integer joursAbsences = 0;
+
+    @Column(name = "motif_absence")
+    private String motifAbsence;
+
+    @Column(name = "taches_assignees", columnDefinition = "TEXT")
+    private String tachesAssignees;
+
+    @Column(name = "taches_completees", columnDefinition = "TEXT")
+    private String tachesCompletees;
+
+    @Column(name = "taux_completion_taches")
+    private Integer tauxCompletionTaches = 0;
 }

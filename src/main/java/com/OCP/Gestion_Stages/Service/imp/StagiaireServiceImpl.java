@@ -1,28 +1,22 @@
 package com.OCP.Gestion_Stages.Service.imp;
 
-import com.OCP.Gestion_Stages.Repository.EtablissementRepository;
-import com.OCP.Gestion_Stages.Repository.StagiaireRepository;
+import com.OCP.Gestion_Stages.Repository.*;
 import com.OCP.Gestion_Stages.Service.EmailService;
 import com.OCP.Gestion_Stages.Service.interfaces.StagiaireService;
 import com.OCP.Gestion_Stages.domain.dto.stagiaire.StagiaireRequest;
 import com.OCP.Gestion_Stages.domain.dto.stagiaire.StagiaireResponse;
-import com.OCP.Gestion_Stages.domain.model.Etablissement;
-import com.OCP.Gestion_Stages.domain.model.Stagiaire;
+import com.OCP.Gestion_Stages.domain.model.*;
 import com.OCP.Gestion_Stages.exeptions.ResourceNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import com.OCP.Gestion_Stages.Repository.ConventionRepository;
-import com.OCP.Gestion_Stages.Repository.StageRepository;
-import com.OCP.Gestion_Stages.Repository.UserRepository;
 import com.OCP.Gestion_Stages.domain.dto.stagiaire.MonDashboardResponse;
 import com.OCP.Gestion_Stages.domain.enums.StageStatus;
 import java.util.List;
 import java.util.stream.Collectors;
-import com.OCP.Gestion_Stages.domain.model.User;
-import com.OCP.Gestion_Stages.domain.model.Stage;
+
 @Service
 @RequiredArgsConstructor
 @Transactional
@@ -35,7 +29,7 @@ public class StagiaireServiceImpl implements StagiaireService {
     private final StageRepository stageRepository;
     private final ConventionRepository conventionRepository;
     private final UserRepository userRepository;
-
+    private final EncadrantRepository encadrantRepository;
     private final PasswordEncoder passwordEncoder;
 
     @Override
@@ -254,7 +248,18 @@ public class StagiaireServiceImpl implements StagiaireService {
         };
     }
 
-
+    @Override
+    public List<StagiaireResponse> getMesStagiaires(String username) {
+        User user = userRepository.findByUsername(username)
+                .orElseThrow(() -> new ResourceNotFoundException("Utilisateur introuvable"));
+        Encadrant encadrant = encadrantRepository.findByUserId(user.getId())
+                .orElseThrow(() -> new ResourceNotFoundException("Encadrant introuvable"));
+        List<Stage> stages = stageRepository.findByEncadrantId(encadrant.getId());
+        return stages.stream()
+                .filter(s -> s.getStagiaire() != null)
+                .map(s -> toResponse(s.getStagiaire()))
+                .collect(Collectors.toList());
+    }
 
 
 }

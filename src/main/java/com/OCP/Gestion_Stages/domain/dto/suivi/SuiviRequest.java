@@ -14,4 +14,10 @@ public class SuiviRequest {
     private String pointsPositifs;
     private String axesAmelioration;
     private BigDecimal note;
+    private Integer joursPresents;
+    private Integer joursAbsences;
+    private String motifAbsence;
+    private String tachesAssignees;
+    private String tachesCompletees;
+    private Integer tauxCompletionTaches;
 }

@@ -18,4 +18,5 @@ public interface StagiaireService {
     void desactiverCompte(Long stagiaireId);
     String resetPassword(Long stagiaireId);
     List<StagiaireResponse> findAllAvecComptes();
+    List<StagiaireResponse> getMesStagiaires(String username);
 }

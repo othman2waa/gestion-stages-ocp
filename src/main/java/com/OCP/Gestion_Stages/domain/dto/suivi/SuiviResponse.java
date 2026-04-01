@@ -20,4 +20,10 @@ public class SuiviResponse {
     private String axesAmelioration;
     private BigDecimal note;
     private LocalDateTime createdAt;
+    private Integer joursPresents;
+    private Integer joursAbsences;
+    private String motifAbsence;
+    private String tachesAssignees;
+    private String tachesCompletees;
+    private Integer tauxCompletionTaches;
 }
