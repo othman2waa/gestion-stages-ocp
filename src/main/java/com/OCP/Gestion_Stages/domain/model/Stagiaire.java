@@ -51,4 +51,8 @@ public class Stagiaire {
     protected void onCreate() {
         createdAt = LocalDateTime.now();
     }
+    @ManyToOne
+    @JoinColumn(name = "departement_id")
+    private Departement departement;
+
 }

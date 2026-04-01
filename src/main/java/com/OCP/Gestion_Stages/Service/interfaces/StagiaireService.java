@@ -19,4 +19,5 @@ public interface StagiaireService {
     String resetPassword(Long stagiaireId);
     List<StagiaireResponse> findAllAvecComptes();
     List<StagiaireResponse> getMesStagiaires(String username);
+    List<StagiaireResponse> findByDepartement(Long departementId);
 }

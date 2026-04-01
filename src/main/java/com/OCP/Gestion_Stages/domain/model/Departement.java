@@ -33,4 +33,19 @@ public class Departement {
     protected void onCreate() {
         createdAt = LocalDateTime.now();
     }
+
+    @Column(columnDefinition = "TEXT")
+    private String description;
+
+    @Column(length = 100)
+    private String email;
+
+    @Column(length = 20)
+    private String telephone;
+
+    @Column(length = 100)
+    private String localisation;
+
+    @Column
+    private Boolean actif = true;
 }

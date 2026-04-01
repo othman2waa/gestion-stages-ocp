@@ -40,6 +40,7 @@ public class SecurityConfig {
                                 "/api/auth/**",
                                 "/api/candidatures",
                                 "/api/annonces/publiques",
+                                "/api/departements/actifs",
                                 "/swagger-ui/**",
                                 "/v3/api-docs/**"
                         ).permitAll()

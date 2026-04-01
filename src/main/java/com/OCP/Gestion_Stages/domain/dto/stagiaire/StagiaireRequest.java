@@ -17,4 +17,5 @@ public class StagiaireRequest {
     private String filiere;
     private String niveau;
     private Long etablissementId;
+    private Long departementId;
 }

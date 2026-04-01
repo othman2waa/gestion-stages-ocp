@@ -19,4 +19,6 @@ public class StagiaireResponse {
     private String username;
     private Boolean actif;
     private Long userId;
+    private Long departementId;
+    private String departementNom;
 }

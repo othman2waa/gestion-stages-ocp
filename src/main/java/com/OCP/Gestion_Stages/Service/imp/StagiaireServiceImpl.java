@@ -31,6 +31,7 @@ public class StagiaireServiceImpl implements StagiaireService {
     private final UserRepository userRepository;
     private final EncadrantRepository encadrantRepository;
     private final PasswordEncoder passwordEncoder;
+    private final DepartementRepository departementRepository;
 
     @Override
     public List<StagiaireResponse> findAll() {
@@ -96,6 +97,12 @@ public class StagiaireServiceImpl implements StagiaireService {
                     .orElseThrow(() -> new ResourceNotFoundException("Etablissement introuvable"));
             stagiaire.setEtablissement(etab);
         }
+        if (request.getDepartementId() != null) {
+            departementRepository.findById(request.getDepartementId())
+                    .ifPresent(stagiaire::setDepartement);
+        } else {
+            stagiaire.setDepartement(null);
+        }
     }
 
     private StagiaireResponse toResponse(Stagiaire s) {
@@ -118,6 +125,10 @@ public class StagiaireServiceImpl implements StagiaireService {
             response.setUsername(s.getUser().getUsername());
             response.setActif(s.getUser().getActif());
             response.setUserId(s.getUser().getId());
+        }
+        if (s.getDepartement() != null) {
+            response.setDepartementId(s.getDepartement().getId());
+            response.setDepartementNom(s.getDepartement().getNom());
         }
         return response;
     }
@@ -260,6 +271,12 @@ public class StagiaireServiceImpl implements StagiaireService {
                 .map(s -> toResponse(s.getStagiaire()))
                 .collect(Collectors.toList());
     }
-
+    @Override
+    public List<StagiaireResponse> findByDepartement(Long departementId) {
+        return stagiaireRepository.findAll().stream()
+                .filter(s -> s.getDepartement() != null && s.getDepartement().getId().equals(departementId))
+                .map(this::toResponse)
+                .collect(Collectors.toList());
+    }
 
 }
