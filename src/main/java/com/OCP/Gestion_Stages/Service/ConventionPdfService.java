@@ -9,6 +9,8 @@ import com.itextpdf.layout.Document;
 import com.itextpdf.layout.element.*;
 import com.itextpdf.layout.properties.TextAlignment;
 import com.itextpdf.layout.properties.UnitValue;
+import com.itextpdf.layout.borders.Border;
+import com.itextpdf.layout.borders.SolidBorder;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
@@ -19,10 +21,11 @@ import java.time.format.DateTimeFormatter;
 @Slf4j
 public class ConventionPdfService {
 
-    private static final DeviceRgb OCP_BLUE = new DeviceRgb(30, 64, 175);
+    private static final DeviceRgb OCP_GREEN = new DeviceRgb(0, 132, 61);
     private static final DeviceRgb LIGHT_GRAY = new DeviceRgb(248, 250, 252);
     private static final DeviceRgb BORDER_GRAY = new DeviceRgb(226, 232, 240);
     private static final DateTimeFormatter DATE_FMT = DateTimeFormatter.ofPattern("dd/MM/yyyy");
+    private static final DateTimeFormatter DATE_LONG = DateTimeFormatter.ofPattern("d MMMM yyyy", java.util.Locale.FRENCH);
 
     public byte[] genererPdf(ConventionResponse conv) {
         try {
@@ -30,144 +33,175 @@ public class ConventionPdfService {
             PdfWriter writer = new PdfWriter(baos);
             PdfDocument pdf = new PdfDocument(writer);
             Document doc = new Document(pdf);
-            doc.setMargins(40, 50, 40, 50);
+            doc.setMargins(50, 60, 50, 60);
 
-            // En-tête OCP
-            ajouterEntete(doc, conv);
+            // ===== EN-TÊTE =====
+            Table entete = new Table(UnitValue.createPercentArray(new float[]{55, 45})).useAllAvailableWidth();
 
-            // Titre
-            doc.add(new Paragraph("CONVENTION DE STAGE")
-                    .setFontSize(18)
-                    .setBold()
-                    .setFontColor(OCP_BLUE)
-                    .setTextAlignment(TextAlignment.CENTER)
-                    .setMarginTop(20)
-                    .setMarginBottom(5));
+            // Gauche: infos OCP
+            Cell gauche = new Cell()
+                    .add(new Paragraph("OCP | SBU Mining").setFontSize(14).setBold().setFontColor(OCP_GREEN))
+                    .add(new Paragraph("Direction Industrielle Mines Gantour").setFontSize(9).setBold())
+                    .add(new Paragraph("Direction Capital Humain").setFontSize(9).setBold())
+                    .add(new Paragraph("Développement RH").setFontSize(9).setBold())
+                    .add(new Paragraph(" ").setFontSize(5))
+                    .add(new Paragraph("Tél. +212 (0) 6 62 07 74 39").setFontSize(8).setFontColor(ColorConstants.DARK_GRAY))
+                    .add(new Paragraph("Fax : +212 (0) 5 24 64 60 86").setFontSize(8).setFontColor(ColorConstants.DARK_GRAY))
+                    .setBorder(Border.NO_BORDER);
 
-            doc.add(new Paragraph("N° " + safe(conv.getNumero()))
-                    .setFontSize(11)
-                    .setFontColor(ColorConstants.GRAY)
-                    .setTextAlignment(TextAlignment.CENTER)
-                    .setMarginBottom(20));
+            // Droite: date et lieu
+            String dateEmission = conv.getDateEmission() != null
+                    ? "Benguerir, le " + conv.getDateEmission().format(DATE_LONG)
+                    : "Benguerir, le —";
+            Cell droite = new Cell()
+                    .add(new Paragraph(dateEmission).setFontSize(9).setTextAlignment(TextAlignment.RIGHT))
+                    .setBorder(Border.NO_BORDER)
+                    .setTextAlignment(TextAlignment.RIGHT);
 
-            // Ligne séparatrice
+            entete.addCell(gauche);
+            entete.addCell(droite);
+            doc.add(entete);
+
+            doc.add(new Paragraph(" ").setFontSize(6));
+
+            // ===== NUMÉRO ET DESTINATAIRE =====
+            Table refDest = new Table(UnitValue.createPercentArray(new float[]{50, 50})).useAllAvailableWidth();
+
+            Cell refCell = new Cell()
+                    .add(new Paragraph("MIG/H/DH - ES n° " + safe(conv.getNumero())).setFontSize(10).setBold())
+                    .setBorder(Border.NO_BORDER);
+
+            // Destinataire (stagiaire)
+            String[] nomParts = safe(conv.getStagiaireNom()).split(" ");
+            String nomFormate = conv.getStagiaireNom() != null
+                    ? "Monsieur/Madame " + conv.getStagiaireNom().toUpperCase()
+                    : "Monsieur/Madame —";
+            Cell destCell = new Cell()
+                    .add(new Paragraph(nomFormate).setFontSize(10).setBold())
+                    .add(new Paragraph("S/C de : " + safe(conv.getStagiaireEtablissement())).setFontSize(9))
+                    .add(new Paragraph("").setFontSize(4))
+                    .add(new Paragraph("- MARRAKECH -").setFontSize(9).setBold())
+                    .setBorder(Border.NO_BORDER)
+                    .setTextAlignment(TextAlignment.LEFT);
+
+            refDest.addCell(refCell);
+            refDest.addCell(destCell);
+            doc.add(refDest);
+
+            doc.add(new Paragraph(" ").setFontSize(10));
+
+            // ===== CORPS DE LA LETTRE =====
+            String typeStageTexte = "PFE".equals(conv.getTypeStage())
+                    ? "Projet de fin d'études"
+                    : "PFA".equals(conv.getTypeStage())
+                    ? "Projet de fin d'année"
+                    : safe(conv.getTypeStage());
+
+            doc.add(new Paragraph("Monsieur/Madame,").setFontSize(10).setMarginBottom(8));
+
+            doc.add(new Paragraph(
+                    "\t\tSuite à votre demande, nous avons l'honneur de vous faire part de notre accord pour " +
+                            "l'organisation d'un " + typeStageTexte + " au sein du Groupe OCP.")
+                    .setFontSize(10).setMarginBottom(12).setFirstLineIndent(20));
+
+            // ===== TABLEAU INFORMATIONS =====
+            Table infoTable = new Table(UnitValue.createPercentArray(new float[]{38, 62})).useAllAvailableWidth();
+            infoTable.setMarginBottom(12);
+
+            // Année et spécialité
+            String niveauSpecialite = safe(conv.getStagiaireNiveau()) + " - " + safe(conv.getStagiaireFiliere());
+            ajouterLigneInfo(infoTable, "Année d'étude et spécialité :", niveauSpecialite);
+
+            // Période de stage
+            String periode = "—";
+            if (conv.getStageDebut() != null && conv.getStageFin() != null) {
+                periode = "Du " + conv.getStageDebut().format(DATE_FMT) +
+                        " au " + conv.getStageFin().format(DATE_FMT);
+            }
+            ajouterLigneInfo(infoTable, "Période de stage :", periode);
+
+            // Direction d'accueil
+            ajouterLigneInfo(infoTable, "Direction d'accueil :", safe(conv.getDepartementNom()));
+
+            // Entité d'accueil
+            ajouterLigneInfo(infoTable, "Entité d'accueil :", safe(conv.getStageSujet()));
+
+            // Parrain de stage
+            ajouterLigneInfo(infoTable, "Parrain de stage :", safe(conv.getEncadrantNom()));
+
+            doc.add(infoTable);
+
+            // ===== CONDITIONS GÉNÉRALES =====
+            doc.add(new Paragraph("Conditions générales\t:").setFontSize(10).setBold().setMarginBottom(4));
+
+            doc.add(new Paragraph("\u2022  Hébergement et restauration : à la charge des stagiaires")
+                    .setFontSize(9).setMarginLeft(20).setMarginBottom(2));
+
+            doc.add(new Paragraph("\u2022  Assurance : Les stagiaires doivent être assurés par leurs soins ou leur " +
+                    "école contre les risques encourus durant leur séjour au sein du Groupe OCP " +
+                    "(accident de travail, de trajet, maladie,...)")
+                    .setFontSize(9).setMarginLeft(20).setMarginBottom(12));
+
+            doc.add(new Paragraph(
+                    "Veuillez agréer Monsieur/Madame, l'expression de nos sentiments distingués.")
+                    .setFontSize(10).setMarginBottom(8));
+
+            doc.add(new Paragraph(
+                    "NB : Le stage ne peut en aucun cas être prolongé au delà de la durée contractée")
+                    .setFontSize(9).setFontColor(ColorConstants.DARK_GRAY).setMarginBottom(20));
+
+            // ===== SIGNATURE =====
+            Table sigTable = new Table(UnitValue.createPercentArray(new float[]{60, 40})).useAllAvailableWidth();
+
+            Cell sigGauche = new Cell()
+                    .add(new Paragraph("P. Le Président Directeur Général & p.o.,").setFontSize(9).setBold())
+                    .add(new Paragraph("P. Le Responsable Développement RH,").setFontSize(9).setBold())
+                    .add(new Paragraph("\n\n\n").setFontSize(8))
+                    .add(new Paragraph("_______________________________").setFontSize(9))
+                    .setBorder(Border.NO_BORDER)
+                    .setTextAlignment(TextAlignment.RIGHT);
+
+            sigTable.addCell(new Cell().setBorder(Border.NO_BORDER));
+            sigTable.addCell(sigGauche);
+            doc.add(sigTable);
+
+            // ===== PIED DE PAGE =====
+            doc.add(new Paragraph(" ").setFontSize(20));
             doc.add(new LineSeparator(new com.itextpdf.kernel.pdf.canvas.draw.SolidLine())
-                    .setMarginBottom(20));
+                    .setMarginBottom(6));
 
-            // Section stagiaire
-            ajouterSection(doc, "INFORMATIONS DU STAGIAIRE");
-            Table tableStagiaire = new Table(UnitValue.createPercentArray(new float[]{40, 60})).useAllAvailableWidth();
-            ajouterLigne(tableStagiaire, "Nom complet", safe(conv.getStagiaireNom()));
-            ajouterLigne(tableStagiaire, "Email", safe(conv.getStagiaireEmail()));
-            ajouterLigne(tableStagiaire, "CIN", safe(conv.getStagiaireCin()));
-            ajouterLigne(tableStagiaire, "Filière", safe(conv.getStagiaireFiliere()));
-            ajouterLigne(tableStagiaire, "Niveau", safe(conv.getStagiaireNiveau()));
-            ajouterLigne(tableStagiaire, "Établissement", safe(conv.getStagiaireEtablissement()));
-            doc.add(tableStagiaire);
-
-            // Section stage
-            doc.add(new Paragraph("").setMarginTop(15));
-            ajouterSection(doc, "INFORMATIONS DU STAGE");
-            Table tableStage = new Table(UnitValue.createPercentArray(new float[]{40, 60})).useAllAvailableWidth();
-            ajouterLigne(tableStage, "Sujet", safe(conv.getStageSujet()));
-            ajouterLigne(tableStage, "Type", safe(conv.getTypeStage()));
-            ajouterLigne(tableStage, "Département", safe(conv.getDepartementNom()));
-            ajouterLigne(tableStage, "Date de début", conv.getStageDebut() != null ? conv.getStageDebut().format(DATE_FMT) : "—");
-            ajouterLigne(tableStage, "Date de fin", conv.getStageFin() != null ? conv.getStageFin().format(DATE_FMT) : "—");
-            ajouterLigne(tableStage, "Encadrant", safe(conv.getEncadrantNom()));
-            doc.add(tableStage);
-
-            // Section signatures
-            doc.add(new Paragraph("").setMarginTop(30));
-            ajouterSection(doc, "SIGNATURES");
-            Table tableSig = new Table(UnitValue.createPercentArray(new float[]{50, 50})).useAllAvailableWidth();
-
-            Cell cellStagiaire = new Cell().add(new Paragraph("Le Stagiaire").setBold())
-                    .add(new Paragraph("\n\n\n_______________________"))
-                    .add(new Paragraph(safe(conv.getStagiaireNom())).setFontSize(9).setFontColor(ColorConstants.GRAY))
-                    .setPadding(15).setBorder(new com.itextpdf.layout.borders.SolidBorder(BORDER_GRAY, 1))
-;
-
-            Cell cellEncadrant = new Cell().add(new Paragraph("L'Encadrant").setBold())
-                    .add(new Paragraph("\n\n\n_______________________"))
-                    .add(new Paragraph(safe(conv.getEncadrantNom())).setFontSize(9).setFontColor(ColorConstants.GRAY))
-                    .setPadding(15).setBorder(new com.itextpdf.layout.borders.SolidBorder(BORDER_GRAY, 1))
-;
-
-            tableSig.addCell(cellStagiaire);
-            tableSig.addCell(cellEncadrant);
-            doc.add(tableSig);
-
-            // Pied de page
-            ajouterPiedDePage(doc, conv);
+            doc.add(new Paragraph(
+                    "OCP S.A\n" +
+                            "Société anonyme au capital de 8.287.500.000 DH - Registre de Commerce : 40327 " +
+                            "Identification Fiscale : 02220794 - Patente n°36000670\n" +
+                            "2-4, rue Al Abtal, Hay Erraha, 20 200 Casablanca, Maroc - Téléphone/Standard : " +
+                            "+212 (0) 5 22 23 20 25 / +212 5 22 92 30 00 / +212 (0) 5 22 92 40 00\n" +
+                            "www.ocpgroup.ma")
+                    .setFontSize(7)
+                    .setFontColor(ColorConstants.GRAY)
+                    .setTextAlignment(TextAlignment.CENTER));
 
             doc.close();
             return baos.toByteArray();
 
         } catch (Exception e) {
-            log.error("Erreur génération PDF: {}", e.getMessage());
+            log.error("Erreur génération PDF convention: {}", e.getMessage());
             throw new RuntimeException("Erreur génération PDF: " + e.getMessage());
         }
     }
 
-    private void ajouterEntete(Document doc, ConventionResponse conv) {
-        Table table = new Table(UnitValue.createPercentArray(new float[]{60, 40})).useAllAvailableWidth();
-
-        Cell cellLogo = new Cell()
-                .add(new Paragraph("OCP").setFontSize(28).setBold().setFontColor(OCP_BLUE))
-                .add(new Paragraph("Office Chérifien des Phosphates").setFontSize(9).setFontColor(ColorConstants.GRAY))
-                .add(new Paragraph("Direction des Ressources Humaines").setFontSize(9).setFontColor(ColorConstants.GRAY))
-                .setBorder(com.itextpdf.layout.borders.Border.NO_BORDER)
-                .setPaddingBottom(10);
-
-        Cell cellInfo = new Cell()
-                .add(new Paragraph("Date d'émission : " + (conv.getDateEmission() != null ? conv.getDateEmission().format(DATE_FMT) : "—")).setFontSize(9))
-                .add(new Paragraph("Statut : " + safe(conv.getStatut() != null ? conv.getStatut().name() : "")).setFontSize(9))
-                .setTextAlignment(TextAlignment.RIGHT)
-                .setBorder(com.itextpdf.layout.borders.Border.NO_BORDER)
-                .setPaddingBottom(10);
-
-        table.addCell(cellLogo);
-        table.addCell(cellInfo);
-        doc.add(table);
-    }
-
-    private void ajouterSection(Document doc, String titre) {
-        doc.add(new Paragraph(titre)
-                .setFontSize(11)
-                .setBold()
-                .setFontColor(ColorConstants.WHITE)
-                .setBackgroundColor(OCP_BLUE)
-                .setPadding(8)
-                .setMarginBottom(0));
-    }
-
-    private void ajouterLigne(Table table, String label, String valeur) {
+    private void ajouterLigneInfo(Table table, String label, String valeur) {
         table.addCell(new Cell()
-                .add(new Paragraph(label).setBold().setFontSize(10))
-                .setBackgroundColor(LIGHT_GRAY)
-                .setPadding(8)
-                .setBorder(new com.itextpdf.layout.borders.SolidBorder(BORDER_GRAY, 1))
-);
+                .add(new Paragraph(label).setFontSize(10).setBold())
+                .setBorder(Border.NO_BORDER)
+                .setPaddingTop(4).setPaddingBottom(4));
         table.addCell(new Cell()
                 .add(new Paragraph(valeur).setFontSize(10))
-                .setPadding(8)
-                .setBorder(new com.itextpdf.layout.borders.SolidBorder(BORDER_GRAY, 1))
-);
-    }
-
-    private void ajouterPiedDePage(Document doc, ConventionResponse conv) {
-        doc.add(new Paragraph("").setMarginTop(30));
-        doc.add(new LineSeparator(new com.itextpdf.kernel.pdf.canvas.draw.SolidLine())
-                .setMarginBottom(8));
-        doc.add(new Paragraph("Document généré automatiquement par le système de gestion des stages OCP — " +
-                java.time.LocalDate.now().format(DATE_FMT))
-                .setFontSize(8)
-                .setFontColor(ColorConstants.GRAY)
-                .setTextAlignment(TextAlignment.CENTER));
+                .setBorder(Border.NO_BORDER)
+                .setPaddingTop(4).setPaddingBottom(4));
     }
 
     private String safe(String val) {
-        return val != null ? val : "—";
+        return val != null && !val.isEmpty() ? val : "—";
     }
 }
