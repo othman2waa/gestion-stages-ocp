@@ -38,7 +38,7 @@ public class CandidatureServiceImpl implements CandidatureService {
     private final PasswordEncoder passwordEncoder;
     private final AnnonceStageRepository annonceRepository;
     private final OllamaService ollamaService;
-
+    private final org.springframework.context.ApplicationContext applicationContext;
 
     @Override
     public CandidatureResponse soumettre(CandidatureRequest request, MultipartFile cv) throws IOException {
@@ -120,12 +120,14 @@ public class CandidatureServiceImpl implements CandidatureService {
                 .replaceAll("[^a-z.]", "");
         String password = "OCP@" + UUID.randomUUID().toString().substring(0, 8).toUpperCase();
 
+        // Créer compte user
         User user = User.builder()
                 .username(username).email(c.getEmail())
                 .password(passwordEncoder.encode(password))
                 .role(UserRole.STAGIAIRE).actif(true).build();
         userRepository.save(user);
 
+        // Créer stagiaire
         Stagiaire stagiaire = new Stagiaire();
         stagiaire.setNom(c.getNom());
         stagiaire.setPrenom(c.getPrenom());
@@ -134,22 +136,107 @@ public class CandidatureServiceImpl implements CandidatureService {
         stagiaire.setFiliere(c.getFiliere());
         stagiaire.setNiveau(c.getNiveau());
         stagiaire.setUser(user);
+
+        // Affecter département
+        if (request.getDepartementId() != null)
+            departementRepository.findById(request.getDepartementId())
+                    .ifPresent(stagiaire::setDepartement);
+
+        // Chercher ou créer établissement
+        if (c.getEtablissement() != null && !c.getEtablissement().isEmpty()) {
+            com.OCP.Gestion_Stages.Repository.EtablissementRepository etabRepo =
+                    applicationContext.getBean(com.OCP.Gestion_Stages.Repository.EtablissementRepository.class);
+            etabRepo.findByNomContainingIgnoreCase(c.getEtablissement()).stream().findFirst()
+                    .ifPresent(stagiaire::setEtablissement);
+        }
+
         stagiaireRepository.save(stagiaire);
 
         // Créer stage
         Stage stage = new Stage();
         stage.setStagiaire(stagiaire);
-        stage.setSujet(c.getSujetSouhaite() != null ? c.getSujetSouhaite() : "Stage PFE");
+
+        // Sujet : priorité au sujet fourni par RH, sinon sujet souhaité par candidat
+        String sujet = (request.getSujet() != null && !request.getSujet().isEmpty())
+                ? request.getSujet()
+                : (c.getSujetSouhaite() != null ? c.getSujetSouhaite() : "Stage");
+        stage.setSujet(sujet);
+
+        // Type de stage
+        if (request.getTypeStage() != null) {
+            try {
+                stage.setTypeStage(TypeStage.valueOf(request.getTypeStage()));
+            } catch (Exception e) {
+                stage.setTypeStage(TypeStage.PFE);
+            }
+        } else if (c.getAnnonceId() != null) {
+            annonceRepository.findById(c.getAnnonceId())
+                    .ifPresent(a -> {
+                        try {
+                            stage.setTypeStage(TypeStage.valueOf(a.getTypeStage()));
+                        } catch (Exception ex) {
+                            stage.setTypeStage(TypeStage.PFE);
+                        }
+                    });
+        } else {
+            stage.setTypeStage(TypeStage.PFE);
+        }
+
+        // Dates
+        if (request.getDateDebut() != null) stage.setDateDebut(request.getDateDebut());
+        if (request.getDateFin() != null) stage.setDateFin(request.getDateFin());
+
         stage.setStatut(StageStatus.VALIDEE);
-        stage.setTypeStage(TypeStage.PFE);
+
+        // Encadrant
         if (request.getEncadrantId() != null)
             encadrantRepository.findById(request.getEncadrantId()).ifPresent(stage::setEncadrant);
+
+        // Département
         if (request.getDepartementId() != null)
             departementRepository.findById(request.getDepartementId()).ifPresent(stage::setDepartement);
+
         stageRepository.save(stage);
+
+        // Créer checklist onboarding automatiquement
+        creerChecklistOnboarding(stagiaire);
 
         // Email credentials
         envoyerEmailAcceptation(c.getEmail(), c.getPrenom() + " " + c.getNom(), username, password);
+    }
+
+    private void creerChecklistOnboarding(Stagiaire stagiaire) {
+        try {
+            com.OCP.Gestion_Stages.Repository.OnboardingChecklistRepository checklistRepo =
+                    applicationContext.getBean(com.OCP.Gestion_Stages.Repository.OnboardingChecklistRepository.class);
+
+            Object[][] etapes = {
+                    {"Remise badge accès", "ADMINISTRATIF", "Remettre le badge d'accès OCP au stagiaire", 1},
+                    {"Signature contrat stage", "ADMINISTRATIF", "Faire signer la convention de stage", 2},
+                    {"Création compte informatique", "INFORMATIQUE", "Créer le compte Active Directory OCP", 3},
+                    {"Accès messagerie OCP", "INFORMATIQUE", "Configurer la messagerie professionnelle", 4},
+                    {"Visite des locaux", "INTEGRATION", "Faire visiter les locaux et présenter les équipes", 5},
+                    {"Présentation au département", "INTEGRATION", "Présenter le stagiaire à l'équipe", 6},
+                    {"Remise du matériel", "MATERIEL", "Remettre PC, téléphone ou matériel nécessaire", 7},
+                    {"Formation sécurité", "FORMATION", "Formation aux règles de sécurité OCP", 8},
+                    {"Présentation du projet", "FORMATION", "Présenter le sujet et les objectifs du stage", 9},
+                    {"Accès outils métier", "INFORMATIQUE", "Configurer les accès aux outils spécifiques", 10}
+            };
+
+            for (Object[] etape : etapes) {
+                com.OCP.Gestion_Stages.domain.model.OnboardingChecklist item =
+                        new com.OCP.Gestion_Stages.domain.model.OnboardingChecklist();
+                item.setStagiaire(stagiaire);
+                item.setEtape((String) etape[0]);
+                item.setCategorie((String) etape[1]);
+                item.setDescription((String) etape[2]);
+                item.setOrdre((Integer) etape[3]);
+                item.setCompleted(false);
+                checklistRepo.save(item);
+            }
+        } catch (Exception e) {
+            log.warn("Checklist onboarding non créée : {}", e.getMessage());
+        }
     }
 
     private void notifierRhNouvelleCandidature(Candidature c) {

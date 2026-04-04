@@ -1,7 +1,5 @@
 package com.OCP.Gestion_Stages.Repository;
 
-
-
 import com.OCP.Gestion_Stages.domain.model.Etablissement;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
@@ -12,4 +10,6 @@ public interface EtablissementRepository extends JpaRepository<Etablissement, Lo
     List<Etablissement> findByVille(String ville);
     List<Etablissement> findByType(String type);
     boolean existsByNom(String nom);
+    List<Etablissement> findByNomContainingIgnoreCase(String nom);
 }
+
