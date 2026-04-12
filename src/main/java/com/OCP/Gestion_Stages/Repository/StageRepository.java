@@ -54,4 +54,6 @@ AND (:departementId IS NULL OR d.id = :departementId)
             @Param("departementId") Long departementId,
             Pageable pageable
     );
+    long countByDepartementId(Long departementId);
+    long countByDepartementIdAndStatut(Long departementId, StageStatus statut);
 }

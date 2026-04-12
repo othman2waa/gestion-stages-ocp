@@ -1,17 +1,12 @@
 package com.OCP.Gestion_Stages.Controller;
 
-import com.OCP.Gestion_Stages.Repository.StageRepository;
-import com.OCP.Gestion_Stages.Repository.StagiaireRepository;
-import com.OCP.Gestion_Stages.Repository.ConventionRepository;
-import com.OCP.Gestion_Stages.Repository.EvaluationRepository;
+import com.OCP.Gestion_Stages.Repository.*;
 import com.OCP.Gestion_Stages.domain.enums.StageStatus;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
-import com.OCP.Gestion_Stages.Repository.CandidatureRepository;
-import com.OCP.Gestion_Stages.Repository.AnnonceStageRepository;
-import com.OCP.Gestion_Stages.Repository.SuiviHebdomadaireRepository;
+
 import java.util.List;
 import java.util.HashMap;
 import java.util.Map;
@@ -28,6 +23,9 @@ public class ReportingController {
     private final CandidatureRepository candidatureRepository;
     private final AnnonceStageRepository annonceRepository;
     private final SuiviHebdomadaireRepository suiviRepository;
+    private final EncadrantRepository encadrantRepository;
+
+
     @GetMapping("/dashboard")
     @PreAuthorize("hasAnyRole('ADMIN_RH','RESPONSABLE_RH')")
     public ResponseEntity<Map<String, Object>> getDashboard() {
@@ -80,32 +78,35 @@ public class ReportingController {
     public ResponseEntity<Map<String, Object>> getStatsCompletes() {
         Map<String, Object> stats = new HashMap<>();
 
-        // KPIs généraux
-        stats.put("totalStagiaires", stagiaireRepository.count());
-        stats.put("totalStages", stageRepository.count());
-        stats.put("totalConventions", conventionRepository.count());
-        stats.put("totalEvaluations", evaluationRepository.count());
+        // KPIs généraux — COUNT directs
+        stats.put("totalStagiaires",   stagiaireRepository.count());
+        stats.put("totalStages",       stageRepository.count());
+        stats.put("totalConventions",  conventionRepository.count());
+        stats.put("totalEvaluations",  evaluationRepository.count());
         stats.put("totalCandidatures", candidatureRepository.count());
-        stats.put("totalAnnonces", annonceRepository.count());
-        stats.put("totalSuivis", suiviRepository.count());
+        stats.put("totalAnnonces",     annonceRepository.count());
+        stats.put("totalSuivis",       suiviRepository.count());
 
-        // Stages par statut
-        stats.put("stagesEnAttente", stageRepository.countByStatut(StageStatus.EN_ATTENTE));
-        stats.put("stagesEnCours", stageRepository.countByStatut(StageStatus.EN_COURS));
-        stats.put("stagesTermines", stageRepository.countByStatut(StageStatus.TERMINE));
-        stats.put("stagesValides", stageRepository.countByStatut(StageStatus.VALIDEE));
-        stats.put("stagesAnnules", stageRepository.countByStatut(StageStatus.ANNULE));
+        // Encadrants
+        stats.put("totalEncadrants", encadrantRepository.count());
 
-        // Candidatures par statut
-        long candEnAttente = candidatureRepository.findAllByOrderByCreatedAtDesc()
-                .stream().filter(c -> "EN_ATTENTE".equals(c.getStatut())).count();
-        long candAcceptees = candidatureRepository.findAllByOrderByCreatedAtDesc()
-                .stream().filter(c -> "ACCEPTEE".equals(c.getStatut())).count();
-        long candRefusees = candidatureRepository.findAllByOrderByCreatedAtDesc()
-                .stream().filter(c -> "REFUSEE".equals(c.getStatut())).count();
+        // Stages par statut — COUNT directs
+        stats.put("stagesEnAttente",          stageRepository.countByStatut(StageStatus.EN_ATTENTE));
+        stats.put("stagesEnCours",            stageRepository.countByStatut(StageStatus.EN_COURS));
+        stats.put("stagesTermines",           stageRepository.countByStatut(StageStatus.TERMINE));
+        stats.put("stagesValides",            stageRepository.countByStatut(StageStatus.VALIDEE));
+        stats.put("stagesAnnules",            stageRepository.countByStatut(StageStatus.ANNULE));
+        stats.put("stagesConventionGeneree",  stageRepository.countByStatut(StageStatus.CONVENTION_GENEREE));
+        stats.put("stagesConventionSignee",   stageRepository.countByStatut(StageStatus.CONVENTION_SIGNEE));
+        stats.put("stagesEnAttenteEvaluation",stageRepository.countByStatut(StageStatus.EN_ATTENTE_EVALUATION));
+
+        // Candidatures — COUNT directs (1 seule requête chacun)
+        long candEnAttente = candidatureRepository.countByStatut("EN_ATTENTE");
+        long candAcceptees = candidatureRepository.countByStatut("ACCEPTEE");
+        long candRefusees  = candidatureRepository.countByStatut("REFUSEE");
         stats.put("candidaturesEnAttente", candEnAttente);
         stats.put("candidaturesAcceptees", candAcceptees);
-        stats.put("candidaturesRefusees", candRefusees);
+        stats.put("candidaturesRefusees",  candRefusees);
 
         // Taux d'acceptation
         long totalCand = candidatureRepository.count();
@@ -114,18 +115,12 @@ public class ReportingController {
         // Moyenne évaluations
         stats.put("moyenneEvaluations", evaluationRepository.findAverageNote());
 
+        // Score moyen matching — requête directe
+        stats.put("scoreMoyenMatching", Math.round(candidatureRepository.findAverageScoreMatching()));
+
         // Par département et type
         stats.put("stagesParDepartement", stageRepository.countByDepartement());
-        stats.put("stagesParType", stageRepository.countByTypeStage());
-
-        // Score moyen matching candidatures
-        double scoreMoyen = candidatureRepository.findAllByOrderByCreatedAtDesc()
-                .stream()
-                .filter(c -> c.getScoreMatching() != null && c.getScoreMatching() > 0)
-                .mapToInt(c -> c.getScoreMatching())
-                .average()
-                .orElse(0);
-        stats.put("scoreMoyenMatching", Math.round(scoreMoyen));
+        stats.put("stagesParType",        stageRepository.countByTypeStage());
 
         return ResponseEntity.ok(stats);
     }

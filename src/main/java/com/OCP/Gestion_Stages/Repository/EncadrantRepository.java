@@ -1,6 +1,5 @@
 package com.OCP.Gestion_Stages.Repository;
 
-
 import com.OCP.Gestion_Stages.domain.model.Encadrant;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
@@ -12,5 +11,6 @@ public interface EncadrantRepository extends JpaRepository<Encadrant, Long> {
     Optional<Encadrant> findByEmail(String email);
     Optional<Encadrant> findByUserId(Long userId);
     List<Encadrant> findByDepartementId(Long departementId);
-
+    long countByDepartementId(Long departementId);
+    long count();
 }

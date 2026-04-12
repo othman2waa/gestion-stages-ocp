@@ -102,29 +102,10 @@ public class DepartementServiceImpl implements DepartementService {
         r.setLocalisation(d.getLocalisation());
         r.setActif(d.getActif());
         r.setCreatedAt(d.getCreatedAt());
-        r.setNombreEncadrants(
-                (int) encadrantRepository.findAll().stream()
-                        .filter(e -> e.getDepartement() != null && e.getDepartement().getId().equals(d.getId()))
-                        .count()
-        );
-        r.setNombreStages(
-                (int) stageRepository.findAll().stream()
-                        .filter(s -> s.getDepartement() != null && s.getDepartement().getId().equals(d.getId()))
-                        .count()
-        );
-        r.setNombreStagesEnCours(
-                (int) stageRepository.findAll().stream()
-                        .filter(s -> s.getDepartement() != null
-                                && s.getDepartement().getId().equals(d.getId())
-                                && s.getStatut() == StageStatus.EN_COURS)
-                        .count()
-        );
 
-        r.setNombreStagiaires(
-                (int) stagiaireRepository.findAll().stream()
-                        .filter(s -> s.getDepartement() != null && s.getDepartement().getId().equals(d.getId()))
-                        .count()
-        );
+        r.setNombreEncadrants((int) encadrantRepository.countByDepartementId(d.getId()));
+        r.setNombreStages((int) stageRepository.countByDepartementId(d.getId()));
+        r.setNombreStagesEnCours((int) stageRepository.countByDepartementIdAndStatut(d.getId(), StageStatus.EN_COURS));
+        r.setNombreStagiaires((int) stagiaireRepository.countByDepartementId(d.getId()));
         return r;
-    }
-}
+    }}

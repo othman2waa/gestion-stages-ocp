@@ -21,4 +21,5 @@ public interface StagiaireRepository extends JpaRepository<Stagiaire, Long> {
             "LOWER(s.prenom) LIKE LOWER(CONCAT('%', :keyword, '%')) OR " +
             "LOWER(s.email) LIKE LOWER(CONCAT('%', :keyword, '%'))")
     List<Stagiaire> searchByKeyword(String keyword);
+    long countByDepartementId(Long departementId);
 }

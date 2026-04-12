@@ -13,10 +13,15 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
+import org.springframework.transaction.annotation.Transactional;
+
+
+
 
 @RestController
 @RequestMapping("/api/sujets")
 @RequiredArgsConstructor
+@Transactional
 public class SujetStageController {
 
     private final SujetStageRepository sujetRepository;

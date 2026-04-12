@@ -19,8 +19,12 @@ import org.springframework.web.bind.annotation.*;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
-import java.util.Map;
+import java.util.Map;import org.springframework.transaction.annotation.Transactional;
 
+
+
+
+@Transactional
 @RestController
 @RequestMapping("/api/attestations")
 @RequiredArgsConstructor
@@ -148,17 +152,19 @@ public class AttestationController {
 
     private Map<String, Object> toResponse(AttestationStage att) {
         Stage s = att.getStage();
-        return Map.of(
-                "id", att.getId(),
-                "statut", att.getStatut(),
-                "dateDemande", att.getDateDemande() != null ? att.getDateDemande().toString() : "",
-                "dateTraitement", att.getDateTraitement() != null ? att.getDateTraitement().toString() : "",
-                "traitePar", att.getTraitePar() != null ? att.getTraitePar() : "",
-                "numeroAttestation", att.getNumeroAttestation() != null ? att.getNumeroAttestation() : "",
-                "commentaire", att.getCommentaire() != null ? att.getCommentaire() : "",
-                "stageId", s.getId(),
-                "stageSujet", s.getSujet() != null ? s.getSujet() : "",
-                "stagiaireNom", s.getStagiaire() != null ? s.getStagiaire().getPrenom() + " " + s.getStagiaire().getNom() : ""
-        );
+        Map<String, Object> map = new java.util.LinkedHashMap<>();
+        map.put("id", att.getId());
+        map.put("statut", att.getStatut());
+        map.put("dateDemande", att.getDateDemande() != null ? att.getDateDemande().toString() : "");
+        map.put("dateTraitement", att.getDateTraitement() != null ? att.getDateTraitement().toString() : "");
+        map.put("traitePar", att.getTraitePar() != null ? att.getTraitePar() : "");
+        map.put("numeroAttestation", att.getNumeroAttestation() != null ? att.getNumeroAttestation() : "");
+        map.put("commentaire", att.getCommentaire() != null ? att.getCommentaire() : "");
+        map.put("stageId", s != null ? s.getId() : null);
+        map.put("stageSujet", s != null && s.getSujet() != null ? s.getSujet() : "");
+        map.put("stagiaireNom", s != null && s.getStagiaire() != null
+                ? s.getStagiaire().getPrenom() + " " + s.getStagiaire().getNom() : "");
+        return map;
     }
+
 }
