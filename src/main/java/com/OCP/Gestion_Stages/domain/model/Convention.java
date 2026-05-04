@@ -38,6 +38,23 @@ public class Convention {
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
 
+    // ── Signatures électroniques
+    @Column(name = "signature_stagiaire")
+    private byte[] signatureStagiaire;
+
+    @Column(name = "signature_encadrant")
+    private byte[] signatureEncadrant;
+
+    @Column(name = "date_signature_stagiaire")
+    private LocalDateTime dateSignatureStagiaire;
+
+    @Column(name = "date_signature_encadrant")
+    private LocalDateTime dateSignatureEncadrant;
+
+    @Builder.Default
+    @Column(name = "statut_signature", length = 30)
+    private String statutSignature = "EN_ATTENTE";
+
     @PrePersist
     protected void onCreate() {
         createdAt = LocalDateTime.now();

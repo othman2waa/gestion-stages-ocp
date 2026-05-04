@@ -3,6 +3,7 @@ package com.OCP.Gestion_Stages.domain.model;
 import jakarta.persistence.*;
 import lombok.Data;
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Entity
 @Table(name = "candidature")
@@ -33,11 +34,21 @@ public class Candidature {
     @Column(name = "departement_souhaite")
     private String departementSouhaite;
 
+    // ── Nouveau : lien FK vers departement
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "departement_id")
+    private Departement departement;
+
     @Column(columnDefinition = "TEXT")
     private String message;
 
     @Column(nullable = false)
     private String statut = "EN_ATTENTE";
+
+    // Statuts possibles :
+    // EN_ATTENTE, VU_ENCADRANT, MEETING_PLANIFIE, ACCEPTEE_ENCADRANT,
+    // REFUSEE_ENCADRANT, DOCUMENTS_REQUIS, DOCUMENTS_SOUMIS,
+    // VERIFICATION_IA, ACCEPTEE_RH, REFUSEE_RH, CONVOCATION_ENVOYEE
 
     @Column(name = "commentaire_rh", columnDefinition = "TEXT")
     private String commentaireRh;
@@ -56,6 +67,7 @@ public class Candidature {
 
     @Column(name = "traite_par")
     private String traitePar;
+
     @Column(name = "annonce_id")
     private Long annonceId;
 
@@ -64,6 +76,33 @@ public class Candidature {
 
     @Column(name = "competences_extraites", columnDefinition = "TEXT")
     private String competencesExtraites;
+
+    // ── Nouveaux champs
+    @Column(name = "username", length = 100)
+    private String username;
+
+    @Column(name = "password_temp", length = 100)
+    private String passwordTemp;
+
+    @Column(name = "date_meeting")
+    private LocalDateTime dateMeeting;
+
+    @Column(name = "statut_meeting", length = 30)
+    private String statutMeeting = "SANS_MEETING";
+
+    @Column(name = "note_encadrant", columnDefinition = "TEXT")
+    private String noteEncadrant;
+
+    @Column(name = "convocation_envoyee")
+    private Boolean convocationEnvoyee = false;
+
+    @Column(name = "date_convocation")
+    private LocalDateTime dateConvocation;
+
+    // ── Documents uploadés
+    @OneToMany(mappedBy = "candidature", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    private List<DocumentCandidature> documents;
+
     @PrePersist
     protected void onCreate() { this.createdAt = LocalDateTime.now(); }
 }

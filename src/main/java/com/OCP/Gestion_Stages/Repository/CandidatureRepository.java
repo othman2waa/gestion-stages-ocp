@@ -15,4 +15,10 @@ public interface CandidatureRepository extends JpaRepository<Candidature, Long> 
     double findAverageScoreMatching();
 
     long countByStatut(String statut);
+    List<Candidature> findByDepartementId(Long departementId);
+    List<Candidature> findByDepartementIdAndStatutNot(Long departementId, String statut);
+    List<Candidature> findByDepartementIdOrderByCreatedAtDesc(Long departementId);
+    long countByDepartementIdAndStatut(Long departementId, String statut);
+
+
 }
