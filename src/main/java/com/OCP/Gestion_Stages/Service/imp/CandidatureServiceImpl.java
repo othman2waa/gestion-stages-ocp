@@ -4,6 +4,7 @@ import com.OCP.Gestion_Stages.Repository.*;
 import com.OCP.Gestion_Stages.Service.EmailService;
 import com.OCP.Gestion_Stages.Service.OllamaService;
 import com.OCP.Gestion_Stages.Service.interfaces.CandidatureService;
+import com.OCP.Gestion_Stages.Service.interfaces.CandidatureServiceExtended;
 import com.OCP.Gestion_Stages.domain.dto.candidature.*;
 import com.OCP.Gestion_Stages.domain.enums.StageStatus;
 import com.OCP.Gestion_Stages.domain.enums.TypeStage;
@@ -21,12 +22,15 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
+import com.OCP.Gestion_Stages.domain.dto.candidature.CandidatureDTO;
+import com.OCP.Gestion_Stages.domain.enums.UserRole;
+import org.springframework.context.ApplicationContext;
 
 @Service
 @RequiredArgsConstructor
 @Slf4j
 @Transactional
-public class CandidatureServiceImpl implements CandidatureService {
+public class CandidatureServiceImpl implements CandidatureService, CandidatureServiceExtended {
 
     private final CandidatureRepository candidatureRepository;
     private final UserRepository userRepository;
@@ -39,6 +43,7 @@ public class CandidatureServiceImpl implements CandidatureService {
     private final AnnonceStageRepository annonceRepository;
     private final OllamaService ollamaService;
     private final org.springframework.context.ApplicationContext applicationContext;
+    private final DocumentCandidatureRepository documentCandidatureRepository;
 
     @Override
     public CandidatureResponse soumettre(CandidatureRequest request, MultipartFile cv) throws IOException {
@@ -392,4 +397,212 @@ public class CandidatureServiceImpl implements CandidatureService {
         r.setAnnonceId(c.getAnnonceId());
         return r;
     }
+    
+
+    @Override
+    public CandidatureDTO planifierMeeting(Long id, String dateMeeting) {
+        Candidature c = candidatureRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Candidature introuvable"));
+        c.setStatut("MEETING_PLANIFIE");
+        c.setStatutMeeting("PLANIFIE");
+        c.setDateMeeting(LocalDateTime.parse(dateMeeting));
+        candidatureRepository.save(c);
+        try {
+            emailService.envoyerEmail(c.getEmail(),
+                    "Meeting planifié — OCP Group",
+                    "Bonjour " + c.getPrenom() + ",\n\nUn entretien a été planifié le " +
+                            c.getDateMeeting() + ".\n\nCordialement,\nOCP Group");
+        } catch (Exception ignored) {}
+        return toDTO(c);
+    }
+
+    @Override
+    public CandidatureDTO decisionEncadrant(Long id, String decision,
+                                            String note, String username) throws Exception {
+        Candidature c = candidatureRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Candidature introuvable"));
+        c.setNoteEncadrant(note);
+        c.setTraitePar(username);
+        c.setTraiteAt(LocalDateTime.now());
+
+        if ("ACCEPTE".equals(decision)) {
+            c.setStatut("ACCEPTEE_ENCADRANT");
+            c.setStatutMeeting("VALIDE");
+
+            String usernameCandidat = (c.getPrenom().toLowerCase() + "." + c.getNom().toLowerCase())
+                    .replaceAll("[^a-z.]", "");
+            String password = "OCP@" + c.getId() + "2026";
+
+            if (!userRepository.existsByUsername(usernameCandidat)) {
+                User user = new User();
+                user.setUsername(usernameCandidat);
+                user.setEmail(c.getEmail());
+                user.setPassword(passwordEncoder.encode(password));
+                user.setRole(UserRole.STAGIAIRE);
+                user.setActif(true);
+                User savedUser = userRepository.save(user);
+                c.setUsername(usernameCandidat);
+                c.setPasswordTemp(password);
+
+                // Créer Stagiaire
+                boolean stagiaireExiste = stagiaireRepository.findAll().stream()
+                        .anyMatch(s -> s.getEmail().equals(c.getEmail()));
+                if (!stagiaireExiste) {
+                    Stagiaire stagiaire = new Stagiaire();
+                    stagiaire.setNom(c.getNom());
+                    stagiaire.setPrenom(c.getPrenom());
+                    stagiaire.setEmail(c.getEmail());
+                    stagiaire.setTelephone(c.getTelephone());
+                    stagiaire.setFiliere(c.getFiliere());
+                    stagiaire.setNiveau(c.getNiveau());
+                    stagiaire.setUser(savedUser);
+                    if (c.getDepartement() != null)
+                        stagiaire.setDepartement(c.getDepartement());
+                    stagiaireRepository.save(stagiaire);
+                }
+            }
+
+            // Créer Stage via traiter()
+            try {
+                TraiterCandidatureRequest req = new TraiterCandidatureRequest();
+                req.setStatut("ACCEPTEE");
+                req.setSujet(c.getSujetSouhaite() != null ? c.getSujetSouhaite() : "Stage OCP");
+                req.setTypeStage("PFE");
+                if (c.getDepartement() != null)
+                    req.setDepartementId(c.getDepartement().getId());
+                traiter(c.getId(), req, username);
+            } catch (Exception ignored) {}
+
+            try {
+                emailService.envoyerEmail(c.getEmail(),
+                        "✅ Candidature acceptée — OCP Group",
+                        "Bonjour " + c.getPrenom() + ",\n\nFélicitations !\n" +
+                                "Identifiants : " + c.getUsername() + " / " + c.getPasswordTemp() + "\n\n" +
+                                "Documents à uploader :\n1. Convention établissement\n2. Assurance\n3. CIN\n4. CV\n\n" +
+                                "Connectez-vous : http://localhost:4200\n\nOCP Group");
+            } catch (Exception ignored) {}
+
+        } else {
+            c.setStatut("REFUSEE_ENCADRANT");
+            c.setStatutMeeting("REFUSE");
+            try {
+                emailService.envoyerEmail(c.getEmail(),
+                        "Résultat candidature — OCP Group",
+                        "Bonjour " + c.getPrenom() + ",\nNous ne pouvons donner suite à votre candidature.\n" +
+                                (note != null ? "Motif : " + note : "") + "\nOCP Group");
+            } catch (Exception ignored) {}
+        }
+
+        candidatureRepository.save(c);
+        return toDTO(c);
+    }
+
+    @Override
+    public java.util.Map<String, Object> verifierIa(Long id) {
+        Candidature c = candidatureRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Candidature introuvable"));
+        c.setStatut("VERIFICATION_IA");
+
+        java.util.List<DocumentCandidature> docs = documentCandidatureRepository.findByCandidatureId(id);
+        int scoreGlobal = 0;
+        java.util.List<String> commentaires = new java.util.ArrayList<>();
+
+        for (DocumentCandidature doc : docs) {
+            int score = 75;
+            String commentaire = "Document " + doc.getTypeDocument() + " : ";
+            if (doc.getContenu() != null && doc.getContenu().length > 0) { score += 10; commentaire += "Fichier reçu ✓. "; }
+            if (doc.getNomFichier() != null && doc.getNomFichier().toLowerCase().contains("pdf")) { score += 5; commentaire += "Format PDF ✓. "; }
+            doc.setScoreIa(score);
+            doc.setStatutIa(score >= 80 ? "VALIDE" : "SUSPECT");
+            doc.setCommentaireIa(commentaire);
+            documentCandidatureRepository.save(doc);
+            scoreGlobal += score;
+            commentaires.add(commentaire);
+        }
+
+        int scoreMoyen = docs.isEmpty() ? 0 : scoreGlobal / docs.size();
+        c.setScoreMatching(scoreMoyen);
+        candidatureRepository.save(c);
+
+        java.util.Map<String, Object> result = new java.util.LinkedHashMap<>();
+        result.put("scoreMoyen", scoreMoyen);
+        result.put("nbDocuments", docs.size());
+        result.put("commentaires", commentaires);
+        result.put("statut", scoreMoyen >= 80 ? "DOCUMENTS_VALIDES" : "DOCUMENTS_SUSPECTS");
+        return result;
+    }
+
+    @Override
+    public CandidatureDTO validerFinal(Long id, String decision,
+                                       String commentaire, String username) {
+        Candidature c = candidatureRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Candidature introuvable"));
+        c.setTraitePar(username);
+        c.setTraiteAt(LocalDateTime.now());
+        c.setCommentaireRh(commentaire);
+
+        if ("VALIDE".equals(decision)) {
+            c.setStatut("ACCEPTEE_RH");
+            c.setConvocationEnvoyee(true);
+            c.setDateConvocation(LocalDateTime.now());
+            try {
+                emailService.envoyerEmail(c.getEmail(),
+                        "🎉 Convocation — OCP Group",
+                        "Bonjour " + c.getPrenom() + ",\nVotre dossier a été validé.\n" +
+                                "Connectez-vous : http://localhost:4200\nOCP Group");
+            } catch (Exception ignored) {}
+        } else {
+            c.setStatut("REFUSEE_RH");
+        }
+
+        candidatureRepository.save(c);
+        return toDTO(c);
+    }
+
+    @Override
+    public List<CandidatureDTO> getCandidaturesDepartement(String username) {
+        User user = userRepository.findByUsername(username)
+                .orElseThrow(() -> new ResourceNotFoundException("User introuvable"));
+        Encadrant encadrant = encadrantRepository.findAll().stream()
+                .filter(e -> e.getUser() != null && e.getUser().getId().equals(user.getId()))
+                .findFirst()
+                .orElseThrow(() -> new ResourceNotFoundException("Encadrant introuvable"));
+        if (encadrant.getDepartement() == null) return List.of();
+        return candidatureRepository
+                .findByDepartementIdOrderByCreatedAtDesc(encadrant.getDepartement().getId())
+                .stream().map(this::toDTO).collect(Collectors.toList());
+    }
+
+    @Override
+    public CandidatureDTO toDTO(Candidature c) {
+        return CandidatureDTO.builder()
+                .id(c.getId())
+                .nom(c.getNom())
+                .prenom(c.getPrenom())
+                .email(c.getEmail())
+                .telephone(c.getTelephone())
+                .filiere(c.getFiliere())
+                .niveau(c.getNiveau())
+                .etablissement(c.getEtablissement())
+                .specialite(c.getSpecialite())
+                .sujetSouhaite(c.getSujetSouhaite())
+                .message(c.getMessage())
+                .statut(c.getStatut())
+                .statutMeeting(c.getStatutMeeting() != null ? c.getStatutMeeting() : "SANS_MEETING")
+                .dateMeeting(c.getDateMeeting())
+                .noteEncadrant(c.getNoteEncadrant())
+                .scoreMatching(c.getScoreMatching() != null ? c.getScoreMatching() : 0)
+                .departementId(c.getDepartement() != null ? c.getDepartement().getId() : null)
+                .departementNom(c.getDepartement() != null ? c.getDepartement().getNom() : "")
+                .username(c.getUsername() != null ? c.getUsername() : "")
+                .convocationEnvoyee(c.getConvocationEnvoyee() != null ? c.getConvocationEnvoyee() : false)
+                .dateConvocation(c.getDateConvocation())
+                .nbDocuments(documentCandidatureRepository.countByCandidatureId(c.getId()))
+                .createdAt(c.getCreatedAt())
+                .traiteAt(c.getTraiteAt())
+                .traitePar(c.getTraitePar())
+                .build();
+    }
+
+
 }
