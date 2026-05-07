@@ -1,5 +1,6 @@
 package com.OCP.Gestion_Stages.Controller;
 
+import com.OCP.Gestion_Stages.Repository.CandidatureRepository;
 import com.OCP.Gestion_Stages.Service.interfaces.StagiaireService;
 import com.OCP.Gestion_Stages.domain.dto.stagiaire.StagiaireRequest;
 import com.OCP.Gestion_Stages.domain.dto.stagiaire.StagiaireResponse;
@@ -13,7 +14,9 @@ import com.OCP.Gestion_Stages.domain.dto.stagiaire.MonDashboardResponse;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import java.util.List;
 import java.util.Map;
-
+import com.OCP.Gestion_Stages.Repository.UserRepository;
+import com.OCP.Gestion_Stages.Repository.StagiaireRepository;
+import com.OCP.Gestion_Stages.exeptions.ResourceNotFoundException;
 
 @RestController
 @RequestMapping("/api/stagiaires")
@@ -21,6 +24,10 @@ import java.util.Map;
 public class StagiaireController {
 
     private final StagiaireService stagiaireService;
+    private final CandidatureRepository candidatureRepository;
+    private final UserRepository userRepository;
+    private final StagiaireRepository stagiaireRepository;
+
 
     @GetMapping
     @PreAuthorize("hasAnyRole('ADMIN_RH','RESPONSABLE_RH','ENCADRANT')")
@@ -99,5 +106,30 @@ public class StagiaireController {
             @AuthenticationPrincipal UserDetails userDetails) {
         return ResponseEntity.ok(stagiaireService.getMesStagiaires(userDetails.getUsername()));
     }
+
+    @GetMapping("/mon-profil")
+    @PreAuthorize("hasRole('STAGIAIRE')")
+    public ResponseEntity<?> getMonProfil(
+            @AuthenticationPrincipal UserDetails userDetails) {
+        var user = userRepository.findByUsername(userDetails.getUsername())
+                .orElseThrow(() -> new ResourceNotFoundException("User introuvable"));
+        var stagiaire = stagiaireRepository.findByUserId(user.getId())
+                .orElseThrow(() -> new ResourceNotFoundException("Stagiaire introuvable"));
+
+        Map<String, Object> profil = new java.util.LinkedHashMap<>();
+        profil.put("id", stagiaire.getId());
+        profil.put("nom", stagiaire.getNom());
+        profil.put("prenom", stagiaire.getPrenom());
+        profil.put("email", stagiaire.getEmail());
+
+        // Trouver la candidature liée via email
+        candidatureRepository.findAll().stream()
+                .filter(c -> c.getEmail().equals(stagiaire.getEmail()))
+                .findFirst()
+                .ifPresent(c -> profil.put("candidatureId", c.getId()));
+
+        return ResponseEntity.ok(profil);
+    }
+
 
 }

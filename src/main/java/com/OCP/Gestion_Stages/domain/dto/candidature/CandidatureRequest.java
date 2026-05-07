@@ -13,8 +13,8 @@ public class CandidatureRequest {
     private String etablissement;
     private String sujetSouhaite;
     private String departementSouhaite;
+    private String specialite;
     private String message;
     private Long annonceId;
     private Long departementId;
-
 }

@@ -1,5 +1,6 @@
 package com.OCP.Gestion_Stages.Controller;
 
+import com.OCP.Gestion_Stages.Repository.DepartementSpecialiteRepository;
 import com.OCP.Gestion_Stages.Service.interfaces.DepartementService;
 import com.OCP.Gestion_Stages.Service.interfaces.EncadrantService;
 import com.OCP.Gestion_Stages.Service.interfaces.StagiaireService;
@@ -19,6 +20,7 @@ public class DepartementController {
     private final DepartementService departementService;
     private final StagiaireService stagiaireService;
     private final EncadrantService encadrantService;
+    private final DepartementSpecialiteRepository specialiteRepository;
 
     @GetMapping
     @PreAuthorize("hasAnyRole('ADMIN_RH','RESPONSABLE_RH','ENCADRANT')")
@@ -74,4 +76,13 @@ public class DepartementController {
     public ResponseEntity<List<?>> getEncadrants(@PathVariable Long id) {
         return ResponseEntity.ok(encadrantService.findByDepartement(id));
     }
+
+    @GetMapping("/{id}/specialites")
+    public ResponseEntity<List<String>> getSpecialites(@PathVariable Long id) {
+        return ResponseEntity.ok(
+                specialiteRepository.findByDepartementIdOrderByNomAsc(id)
+                        .stream().map(s -> s.getNom()).collect(java.util.stream.Collectors.toList())
+        );
+    }
+
 }

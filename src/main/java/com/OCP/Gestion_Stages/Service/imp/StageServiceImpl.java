@@ -1,6 +1,7 @@
 package com.OCP.Gestion_Stages.Service.imp;
 
 import com.OCP.Gestion_Stages.Repository.*;
+import com.OCP.Gestion_Stages.Service.ArchiveStageService;
 import com.OCP.Gestion_Stages.Service.interfaces.StageService;
 import com.OCP.Gestion_Stages.domain.dto.stage.StageRequest;
 import com.OCP.Gestion_Stages.domain.dto.stage.StageResponse;
@@ -15,16 +16,24 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import java.util.List;
 import java.util.stream.Collectors;
+import lombok.extern.slf4j.Slf4j;
+
+
 
 @Service
 @RequiredArgsConstructor
 @Transactional
+@Slf4j
 public class StageServiceImpl implements StageService {
 
     private final StageRepository stageRepository;
     private final StagiaireRepository stagiaireRepository;
     private final EncadrantRepository encadrantRepository;
     private final DepartementRepository departementRepository;
+    private final ArchiveStageService archiveStageService;
+
+
+
     @Override
     public Page<StageResponse> rechercher(String keyword, StageStatus statut, String typeStage, Long departementId, Pageable pageable) {
         TypeStage type = null;
@@ -73,9 +82,20 @@ public class StageServiceImpl implements StageService {
         Stage stage = stageRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Stage introuvable : " + id));
         stage.setStatut(statut);
-        return toResponse(stageRepository.save(stage));
-    }
+        Stage saved = stageRepository.save(stage);
 
+        // ── Trigger automatique archivage
+        if (statut == StageStatus.TERMINE) {
+            try {
+                archiveStageService.archiverStage(saved, "SYSTEME_AUTO");
+                log.info("Stage {} archivé automatiquement", id);
+            } catch (Exception e) {
+                log.warn("Erreur archivage automatique stage {}: {}", id, e.getMessage());
+            }
+        }
+
+        return toResponse(saved);
+    }
     @Override
     public List<StageResponse> findByStagiaire(Long stagiaireId) {
         return stageRepository.findByStagiaireId(stagiaireId)

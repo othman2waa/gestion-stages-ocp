@@ -200,4 +200,48 @@ public class OllamaService {
             return Map.of("score", 0);
         }
     }
+    public int calculerScoreMatchingSpecialite(String texteCV, String specialite, String departement) {
+        String prompt = """
+        Tu es un expert RH chez OCP Group Maroc. Analyse ce CV et calcule un score de compatibilité.
+        
+        Spécialité recherchée: %s
+        Département: %s
+        
+        Critères d'évaluation:
+        - Compétences techniques liées à la spécialité (40 points)
+        - Projets et expériences en rapport (30 points)
+        - Niveau d'études et formation (20 points)
+        - Motivation et cohérence du profil (10 points)
+        
+        Réponds UNIQUEMENT avec un nombre entier entre 0 et 100.
+        Aucun texte avant ou après. Juste le nombre.
+        
+        CV à analyser:
+        %s
+        """.formatted(specialite, departement, texteCV);
+
+        try {
+            Map<String, Object> body = Map.of(
+                    "model", MODEL,
+                    "prompt", prompt,
+                    "stream", false
+            );
+            String requestBody = objectMapper.writeValueAsString(body);
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create(OLLAMA_URL))
+                    .header("Content-Type", "application/json")
+                    .POST(HttpRequest.BodyPublishers.ofString(requestBody))
+                    .build();
+            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+            JsonNode node = objectMapper.readTree(response.body());
+            String result = node.get("response").asText().trim()
+                    .replaceAll("[^0-9]", "").trim();
+            if (result.isEmpty()) return 50;
+            int score = Integer.parseInt(result.substring(0, Math.min(result.length(), 3)));
+            return Math.min(100, Math.max(0, score));
+        } catch (Exception e) {
+            log.warn("Erreur score IA spécialité: {}", e.getMessage());
+            return 50;
+        }
+    }
 }

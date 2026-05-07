@@ -51,6 +51,26 @@ public class CandidatureServiceImpl implements CandidatureService {
         c.setNiveau(request.getNiveau());
         c.setEtablissement(request.getEtablissement());
         c.setSujetSouhaite(request.getSujetSouhaite());
+        c.setSpecialite(request.getSpecialite());
+        if (cv != null && !cv.isEmpty() && request.getSpecialite() != null) {
+            try {
+                org.apache.pdfbox.pdmodel.PDDocument pdfDoc =
+                        org.apache.pdfbox.Loader.loadPDF(cv.getBytes());
+                org.apache.pdfbox.text.PDFTextStripper stripper =
+                        new org.apache.pdfbox.text.PDFTextStripper();
+                String texteCV = stripper.getText(pdfDoc);
+                pdfDoc.close();
+                int score = ollamaService.calculerScoreMatchingSpecialite(
+                        texteCV,
+                        request.getSpecialite(),
+                        request.getDepartementSouhaite() != null ? request.getDepartementSouhaite() : "OCP Group"
+                );
+                c.setScoreMatching(score);
+                log.info("Score IA calculé: {} pour spécialité: {}", score, request.getSpecialite());
+            } catch (Exception e) {
+                log.warn("Erreur score IA: {}", e.getMessage());
+            }
+        }
         c.setDepartementSouhaite(request.getDepartementSouhaite());
         c.setMessage(request.getMessage());
         c.setStatut("EN_ATTENTE");

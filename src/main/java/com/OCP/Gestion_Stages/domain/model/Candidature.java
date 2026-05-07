@@ -77,6 +77,8 @@ public class Candidature {
     @Column(name = "competences_extraites", columnDefinition = "TEXT")
     private String competencesExtraites;
 
+    @Column(name = "specialite", length = 100)
+    private String specialite;
     // ── Nouveaux champs
     @Column(name = "username", length = 100)
     private String username;
