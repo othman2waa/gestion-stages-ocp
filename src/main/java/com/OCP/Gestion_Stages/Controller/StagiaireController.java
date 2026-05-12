@@ -6,6 +6,7 @@ import com.OCP.Gestion_Stages.domain.dto.stagiaire.StagiaireRequest;
 import com.OCP.Gestion_Stages.domain.dto.stagiaire.StagiaireResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -108,6 +109,7 @@ public class StagiaireController {
     }
 
     @GetMapping("/mon-profil")
+    @Transactional
     @PreAuthorize("hasRole('STAGIAIRE')")
     public ResponseEntity<?> getMonProfil(
             @AuthenticationPrincipal UserDetails userDetails) {
@@ -121,12 +123,29 @@ public class StagiaireController {
         profil.put("nom", stagiaire.getNom());
         profil.put("prenom", stagiaire.getPrenom());
         profil.put("email", stagiaire.getEmail());
+        profil.put("filiere", stagiaire.getFiliere());
+        profil.put("niveau", stagiaire.getNiveau());
 
-        // Trouver la candidature liée via email
+        // Candidature complète
         candidatureRepository.findAll().stream()
                 .filter(c -> c.getEmail().equals(stagiaire.getEmail()))
                 .findFirst()
-                .ifPresent(c -> profil.put("candidatureId", c.getId()));
+                .ifPresent(c -> {
+                    profil.put("candidatureId", c.getId());
+                    profil.put("candidatureStatut", c.getStatut());
+                    profil.put("candidatureStatutMeeting", c.getStatutMeeting());
+                    profil.put("candidatureDateMeeting", c.getDateMeeting() != null ? c.getDateMeeting().toString() : null);
+                    profil.put("candidatureSpecialite", c.getSpecialite());
+                    profil.put("candidatureDepartement", c.getDepartement() != null ? c.getDepartement().getNom() : "");
+                    profil.put("candidatureCreatedAt", c.getCreatedAt() != null ? c.getCreatedAt().toString() : "");
+                    profil.put("convocationEnvoyee", c.getConvocationEnvoyee() != null ? c.getConvocationEnvoyee() : false);
+                    profil.put("dateConvocation", c.getDateConvocation() != null ? c.getDateConvocation().toString() : null);
+                    // Nb documents uploadés
+                    long nbDocs = candidatureRepository.findById(c.getId())
+                            .map(cand -> cand.getDocuments() != null ? cand.getDocuments().size() : 0)
+                            .orElse(0).longValue();
+                    profil.put("nbDocuments", nbDocs);
+                });
 
         return ResponseEntity.ok(profil);
     }
