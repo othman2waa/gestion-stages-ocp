@@ -5,6 +5,11 @@ import lombok.Data;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 
+
+
+
+
+
 @Data
 public class ConventionResponse {
     private Long id;

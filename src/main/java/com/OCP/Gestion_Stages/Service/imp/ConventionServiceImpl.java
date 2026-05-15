@@ -15,11 +15,13 @@ import com.OCP.Gestion_Stages.domain.enums.ConventionStatus;
 import com.OCP.Gestion_Stages.domain.enums.StageStatus;
 import java.util.List;
 import java.util.stream.Collectors;
+import com.OCP.Gestion_Stages.domain.dto.convention.ConventionDTO;
+import com.OCP.Gestion_Stages.Service.interfaces.ConventionServiceExtended;
 
 @Service
 @RequiredArgsConstructor
 @Transactional
-public class ConventionServiceImpl implements ConventionService {
+public class ConventionServiceImpl implements ConventionService, ConventionServiceExtended {
 
     private final ConventionRepository conventionRepository;
     private final StageRepository stageRepository;
@@ -126,5 +128,124 @@ public class ConventionServiceImpl implements ConventionService {
                 response.setDepartementNom(s.getDepartement().getNom());
         }
         return response;
+    }
+
+
+
+// Implémentation ConventionServiceExtended
+
+
+    @Override
+    public List<ConventionDTO> getAllDTO() {
+        return conventionRepository.findAllByOrderByCreatedAtDesc()
+                .stream().map(this::toDTO).collect(java.util.stream.Collectors.toList());
+    }
+
+    @Override
+    public ConventionDTO getByIdDTO(Long id) {
+        return toDTO(conventionRepository.findById(id)
+                .orElseThrow(() -> new com.OCP.Gestion_Stages.exeptions.ResourceNotFoundException("Convention introuvable")));
+    }
+
+    @Override
+    public ConventionDTO generer(Long stageId) {
+        Stage stage = stageRepository.findById(stageId)
+                .orElseThrow(() -> new com.OCP.Gestion_Stages.exeptions.ResourceNotFoundException("Stage introuvable"));
+        Convention c = Convention.builder()
+                .stage(stage)
+                .statut(com.OCP.Gestion_Stages.domain.enums.ConventionStatus.EN_VALIDATION)
+                .dateEmission(java.time.LocalDate.now())
+                .numero("CONV-" + stageId + "-" + java.time.LocalDate.now().getYear())
+                .build();
+        stage.setStatut(com.OCP.Gestion_Stages.domain.enums.StageStatus.CONVENTION_GENEREE);
+        stageRepository.save(stage);
+        return toDTO(conventionRepository.save(c));
+    }
+
+    @Override
+    public ConventionDTO signerManuel(Long id) {
+        Convention c = conventionRepository.findById(id)
+                .orElseThrow(() -> new com.OCP.Gestion_Stages.exeptions.ResourceNotFoundException("Convention introuvable"));
+        c.setStatut(com.OCP.Gestion_Stages.domain.enums.ConventionStatus.SIGNEE);
+        c.setStatutSignature("SIGNEE_COMPLET");
+        Stage stage = c.getStage();
+        stage.setStatut(com.OCP.Gestion_Stages.domain.enums.StageStatus.CONVENTION_SIGNEE);
+        stageRepository.save(stage);
+        return toDTO(conventionRepository.save(c));
+    }
+
+    @Override
+    public java.util.Map<String, Object> signerElectronique(Long id, String signature, String cible, String username) {
+        Convention c = conventionRepository.findById(id)
+                .orElseThrow(() -> new com.OCP.Gestion_Stages.exeptions.ResourceNotFoundException("Convention introuvable"));
+
+        String base64 = signature.replace("data:image/png;base64,", "");
+        byte[] signatureBytes = java.util.Base64.getDecoder().decode(base64);
+
+        if ("stagiaire".equals(cible)) {
+            c.setSignatureStagiaire(signatureBytes);
+            c.setDateSignatureStagiaire(java.time.LocalDateTime.now());
+        } else {
+            c.setSignatureEncadrant(signatureBytes);
+            c.setDateSignatureEncadrant(java.time.LocalDateTime.now());
+        }
+
+        boolean stagiaireSigne = c.getSignatureStagiaire() != null;
+        boolean encadrantSigne = c.getSignatureEncadrant() != null;
+
+        if (stagiaireSigne && encadrantSigne) {
+            c.setStatutSignature("SIGNEE_COMPLET");
+            c.setStatut(com.OCP.Gestion_Stages.domain.enums.ConventionStatus.SIGNEE);
+            Stage stage = c.getStage();
+            stage.setStatut(com.OCP.Gestion_Stages.domain.enums.StageStatus.CONVENTION_SIGNEE);
+            stageRepository.save(stage);
+        } else {
+            c.setStatutSignature("PARTIELLEMENT_SIGNEE");
+        }
+
+        conventionRepository.save(c);
+
+        java.util.Map<String, Object> result = new java.util.LinkedHashMap<>();
+        result.put("message", "Signature enregistree");
+        result.put("statutSignature", c.getStatutSignature());
+        result.put("stagiaireSigne", stagiaireSigne);
+        result.put("encadrantSigne", encadrantSigne);
+        return result;
+    }
+
+    @Override
+    public java.util.Map<String, Object> getSignatureStatus(Long id) {
+        Convention c = conventionRepository.findById(id)
+                .orElseThrow(() -> new com.OCP.Gestion_Stages.exeptions.ResourceNotFoundException("Convention introuvable"));
+        java.util.Map<String, Object> status = new java.util.LinkedHashMap<>();
+        status.put("statutSignature", c.getStatutSignature() != null ? c.getStatutSignature() : "EN_ATTENTE");
+        status.put("stagiaireSigne", c.getSignatureStagiaire() != null);
+        status.put("encadrantSigne", c.getSignatureEncadrant() != null);
+        status.put("dateSignatureStagiaire", c.getDateSignatureStagiaire() != null ? c.getDateSignatureStagiaire().toString() : null);
+        status.put("dateSignatureEncadrant", c.getDateSignatureEncadrant() != null ? c.getDateSignatureEncadrant().toString() : null);
+        return status;
+    }
+
+    @Override
+    public ConventionDTO toDTO(Convention c) {
+        Stage s = c.getStage();
+        return ConventionDTO.builder()
+                .id(c.getId())
+                .numero(c.getNumero())
+                .statut(c.getStatut() != null ? c.getStatut().name() : "")
+                .statutSignature(c.getStatutSignature() != null ? c.getStatutSignature() : "EN_ATTENTE")
+                .stagiaireSigne(c.getSignatureStagiaire() != null)
+                .encadrantSigne(c.getSignatureEncadrant() != null)
+                .dateEmission(c.getDateEmission())
+                .createdAt(c.getCreatedAt())
+                .stageId(s != null ? s.getId() : null)
+                .stagiaireNom(s != null && s.getStagiaire() != null ?
+                        s.getStagiaire().getPrenom() + " " + s.getStagiaire().getNom() : "")
+                .encadrantNom(s != null && s.getEncadrant() != null ?
+                        s.getEncadrant().getPrenom() + " " + s.getEncadrant().getNom() : "")
+                .sujet(s != null ? s.getSujet() : "")
+                .dateDebut(s != null && s.getDateDebut() != null ? s.getDateDebut().toString() : "")
+                .dateFin(s != null && s.getDateFin() != null ? s.getDateFin().toString() : "")
+                .build();
     }
 }
