@@ -108,6 +108,47 @@ public class StagiaireController {
         return ResponseEntity.ok(stagiaireService.getMesStagiaires(userDetails.getUsername()));
     }
 
+
+    @PatchMapping("/ma-fiche")
+    @PreAuthorize("hasRole('STAGIAIRE')")
+    @Transactional
+    public ResponseEntity<?> saveFiche(
+            @RequestBody Map<String, Object> body,
+            @AuthenticationPrincipal UserDetails userDetails) {
+        var user = userRepository.findByUsername(userDetails.getUsername())
+                .orElseThrow(() -> new ResourceNotFoundException("User introuvable"));
+        var stagiaire = stagiaireRepository.findByUserId(user.getId())
+                .orElseThrow(() -> new ResourceNotFoundException("Stagiaire introuvable"));
+
+        if (body.get("adressePersonnelle") != null)
+            stagiaire.setAdressePersonnelle((String) body.get("adressePersonnelle"));
+        if (body.get("villeEtablissement") != null)
+            stagiaire.setVilleEtablissement((String) body.get("villeEtablissement"));
+        if (body.get("adresseLogementStage") != null)
+            stagiaire.setAdresseLogementStage((String) body.get("adresseLogementStage"));
+        if (body.get("contactUrgenceNom") != null)
+            stagiaire.setContactUrgenceNom((String) body.get("contactUrgenceNom"));
+        if (body.get("contactUrgenceTel") != null)
+            stagiaire.setContactUrgenceTel((String) body.get("contactUrgenceTel"));
+        if (body.get("serviceAccueil") != null)
+            stagiaire.setServiceAccueil((String) body.get("serviceAccueil"));
+        if (body.get("diplome") != null)
+            stagiaire.setDiplome((String) body.get("diplome"));
+        if (body.get("observation") != null)
+            stagiaire.setObservation((String) body.get("observation"));
+        if (body.get("reglesAcceptees") != null)
+            stagiaire.setReglesAcceptees((Boolean) body.get("reglesAcceptees"));
+
+        stagiaire.setFicheRenseignementCompletee(true);
+        stagiaireRepository.save(stagiaire);
+
+        return ResponseEntity.ok(Map.of(
+                "message", "Fiche enregistrée avec succès",
+                "ficheCompletee", true
+        ));
+    }
+
+
     @GetMapping("/mon-profil")
     @Transactional
     @PreAuthorize("hasRole('STAGIAIRE')")
