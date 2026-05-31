@@ -20,6 +20,10 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 import com.OCP.Gestion_Stages.Repository.EncadrantRepository;
+import com.OCP.Gestion_Stages.Repository.StageRepository;
+import com.OCP.Gestion_Stages.Service.LettreAccordPdfService;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 
 import java.util.List;
 
@@ -31,6 +35,8 @@ public class StageController {
     private final StageService stageService;
     private final UserRepository userRepository;
     private final EncadrantRepository encadrantRepository;
+    private final StageRepository stageRepository;
+    private final LettreAccordPdfService lettreAccordPdfService;
     @GetMapping
     @PreAuthorize("hasAnyRole('ADMIN_RH','RESPONSABLE_RH','ENCADRANT')")
     public ResponseEntity<List<StageResponse>> getAll() {
@@ -88,6 +94,7 @@ public class StageController {
             @RequestParam(required = false) String keyword,
             @RequestParam(required = false) StageStatus statut,
             @RequestParam(required = false) String typeStage,
+            @RequestParam(required = false) Long departementId,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size,
             @RequestParam(defaultValue = "createdAt") String sortBy,
@@ -96,7 +103,7 @@ public class StageController {
         Pageable pageable = PageRequest.of(page, size,
                 sortDir.equals("asc") ? Sort.by(sortBy).ascending() : Sort.by(sortBy).descending());
 
-        return ResponseEntity.ok(stageService.rechercher(keyword, statut, typeStage, null, pageable));
+        return ResponseEntity.ok(stageService.rechercher(keyword, statut, typeStage, departementId, pageable));
     }
 
     @GetMapping("/mes-stages")
@@ -108,5 +115,19 @@ public class StageController {
         Encadrant encadrant = encadrantRepository.findByUserId(user.getId())
                 .orElseThrow(() -> new ResourceNotFoundException("Profil encadrant introuvable"));
         return ResponseEntity.ok(stageService.findByEncadrant(encadrant.getId()));
+    }
+
+    // ── Lettre d'accord PFE (PDF)
+    @GetMapping("/{id}/lettre-accord")
+    @org.springframework.transaction.annotation.Transactional(readOnly = true)
+    @PreAuthorize("hasAnyRole('ADMIN_RH','RESPONSABLE_RH')")
+    public ResponseEntity<byte[]> getLettreAccord(@PathVariable Long id) {
+        var stage = stageRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Stage introuvable"));
+        byte[] pdf = lettreAccordPdfService.genererLettreAccord(stage);
+        return ResponseEntity.ok()
+                .contentType(MediaType.APPLICATION_PDF)
+                .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=lettre-accord-" + id + ".pdf")
+                .body(pdf);
     }
 }

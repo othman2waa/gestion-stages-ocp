@@ -35,22 +35,25 @@ public interface StageRepository extends JpaRepository<Stage, Long> {
     @Query("SELECT s FROM Stage s WHERE s.encadrant.id = :encadrantId AND s.statut = :statut")
     List<Stage> findByEncadrantIdAndStatut(Long encadrantId, StageStatus statut);
 
-    @Query("""
-SELECT s FROM Stage s
-LEFT JOIN s.stagiaire st
-LEFT JOIN s.encadrant e
-LEFT JOIN s.departement d
-WHERE (:keyword IS NULL OR LOWER(s.sujet) LIKE LOWER(CONCAT('%', :keyword, '%'))
-    OR LOWER(CAST(st.nom AS string)) LIKE LOWER(CONCAT('%', :keyword, '%'))
-    OR LOWER(CAST(st.prenom AS string)) LIKE LOWER(CONCAT('%', :keyword, '%')))
-AND (:statut IS NULL OR s.statut = :statut)
-AND (:typeStage IS NULL OR s.typeStage = :typeStage)
-AND (:departementId IS NULL OR d.id = :departementId)
-""")
+    @Query(value = """
+SELECT s.* FROM stage s
+LEFT JOIN stagiaire st ON st.id = s.stagiaire_id
+LEFT JOIN encadrant e ON e.id = s.encadrant_id
+LEFT JOIN departement d ON d.id = s.departement_id
+WHERE (CAST(:keyword AS VARCHAR) IS NULL
+    OR LOWER(s.sujet) LIKE LOWER(CONCAT('%', CAST(:keyword AS VARCHAR), '%'))
+    OR LOWER(st.nom) LIKE LOWER(CONCAT('%', CAST(:keyword AS VARCHAR), '%'))
+    OR LOWER(st.prenom) LIKE LOWER(CONCAT('%', CAST(:keyword AS VARCHAR), '%'))
+    OR LOWER(e.nom) LIKE LOWER(CONCAT('%', CAST(:keyword AS VARCHAR), '%'))
+    OR LOWER(d.nom) LIKE LOWER(CONCAT('%', CAST(:keyword AS VARCHAR), '%')))
+AND (CAST(:statut AS VARCHAR) IS NULL OR s.statut = CAST(:statut AS VARCHAR))
+AND (CAST(:typeStage AS VARCHAR) IS NULL OR s.type_stage = CAST(:typeStage AS VARCHAR))
+AND (CAST(:departementId AS BIGINT) IS NULL OR d.id = CAST(:departementId AS BIGINT))
+""", nativeQuery = true)
     Page<Stage> rechercher(
             @Param("keyword") String keyword,
-            @Param("statut") StageStatus statut,
-            @Param("typeStage") TypeStage typeStage,
+            @Param("statut") String statut,
+            @Param("typeStage") String typeStage,
             @Param("departementId") Long departementId,
             Pageable pageable
     );

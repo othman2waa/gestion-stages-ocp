@@ -36,11 +36,9 @@ public class StageServiceImpl implements StageService {
 
     @Override
     public Page<StageResponse> rechercher(String keyword, StageStatus statut, String typeStage, Long departementId, Pageable pageable) {
-        TypeStage type = null;
-        if (typeStage != null && !typeStage.isEmpty()) {
-            try { type = TypeStage.valueOf(typeStage); } catch (Exception ignored) {}
-        }
-        return stageRepository.rechercher(keyword, statut, type, departementId, pageable)
+        String statutStr = statut != null ? statut.name() : null;
+        String typeStr = (typeStage != null && !typeStage.isEmpty()) ? typeStage : null;
+        return stageRepository.rechercher(keyword, statutStr, typeStr, departementId, pageable)
                 .map(this::toResponse);
     }
     @Override
