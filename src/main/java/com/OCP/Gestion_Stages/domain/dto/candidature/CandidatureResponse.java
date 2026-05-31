@@ -15,6 +15,8 @@ public class CandidatureResponse {
     private String etablissement;
     private String sujetSouhaite;
     private String departementSouhaite;
+    private String departementNom;
+    private Long departementId;
     private String message;
     private String statut;
     private String commentaireRh;

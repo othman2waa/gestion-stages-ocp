@@ -206,9 +206,7 @@ public class CandidatureController {
         );
     }
 
-    // ════════════════════════════════════════
-    // Ancien endpoint — compatibilité
-    // ════════════════════════════════════════
+
     @PatchMapping("/{id}/traiter")
     @PreAuthorize("hasAnyRole('ADMIN_RH','RESPONSABLE_RH')")
     public ResponseEntity<CandidatureResponse> traiter(
@@ -217,6 +215,23 @@ public class CandidatureController {
             @AuthenticationPrincipal UserDetails userDetails) throws Exception {
         return ResponseEntity.ok(
                 candidatureService.traiter(id, request, userDetails.getUsername())
+        );
+    }
+
+
+
+    // ── RH — Candidatures à traiter uniquement
+    @GetMapping("/rh")
+    @PreAuthorize("hasAnyRole('ADMIN_RH','RESPONSABLE_RH')")
+    public ResponseEntity<List<CandidatureResponse>> getCandidaturesRH() {
+        List<String> statutsRH = List.of(
+                "ACCEPTEE_ENCADRANT", "DOCUMENTS_SOUMIS",
+                "VERIFICATION_IA", "ACCEPTEE_RH", "REFUSEE_RH"
+        );
+        return ResponseEntity.ok(
+                candidatureService.findAll().stream()
+                        .filter(c -> statutsRH.contains(c.getStatut()))
+                        .collect(java.util.stream.Collectors.toList())
         );
     }
 }

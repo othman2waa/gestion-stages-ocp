@@ -349,6 +349,7 @@ public class CandidatureServiceImpl implements CandidatureService, CandidatureSe
     }
 
     @Override
+    @Transactional(readOnly = true)
     public List<CandidatureResponse> findAll() {
         return candidatureRepository.findAllByOrderByCreatedAtDesc()
                 .stream().map(this::toResponse).collect(Collectors.toList());
@@ -395,6 +396,10 @@ public class CandidatureServiceImpl implements CandidatureService, CandidatureSe
         r.setTraitePar(c.getTraitePar());
         r.setScoreMatching(c.getScoreMatching());
         r.setAnnonceId(c.getAnnonceId());
+        if (c.getDepartement() != null) {
+            r.setDepartementNom(c.getDepartement().getNom());
+            r.setDepartementId(c.getDepartement().getId());
+        }
         return r;
     }
     
