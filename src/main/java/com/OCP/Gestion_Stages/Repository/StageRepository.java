@@ -49,12 +49,14 @@ WHERE (CAST(:keyword AS VARCHAR) IS NULL
 AND (CAST(:statut AS VARCHAR) IS NULL OR s.statut = CAST(:statut AS VARCHAR))
 AND (CAST(:typeStage AS VARCHAR) IS NULL OR s.type_stage = CAST(:typeStage AS VARCHAR))
 AND (CAST(:departementId AS BIGINT) IS NULL OR d.id = CAST(:departementId AS BIGINT))
+AND (CAST(:encadrantId AS BIGINT) IS NULL OR e.id = CAST(:encadrantId AS BIGINT))
 """, nativeQuery = true)
     Page<Stage> rechercher(
             @Param("keyword") String keyword,
             @Param("statut") String statut,
             @Param("typeStage") String typeStage,
             @Param("departementId") Long departementId,
+            @Param("encadrantId") Long encadrantId,
             Pageable pageable
     );
     long countByDepartementId(Long departementId);

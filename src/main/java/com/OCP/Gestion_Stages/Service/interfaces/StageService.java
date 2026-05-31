@@ -15,6 +15,6 @@ public interface StageService {
     StageResponse updateStatut(Long id, StageStatus statut);
     List<StageResponse> findByStagiaire(Long stagiaireId);
     List<StageResponse> findByEncadrant(Long encadrantId);
-    Page<StageResponse> rechercher(String keyword, StageStatus statut, String typeStage, Long departementId, Pageable pageable);
+    Page<StageResponse> rechercher(String keyword, StageStatus statut, String typeStage, Long departementId, Long encadrantId, Pageable pageable);
 
 }

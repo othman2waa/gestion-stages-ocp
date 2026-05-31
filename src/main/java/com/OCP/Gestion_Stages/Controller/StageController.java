@@ -91,6 +91,7 @@ public class StageController {
     @GetMapping("/rechercher")
     @PreAuthorize("hasAnyRole('ADMIN_RH','RESPONSABLE_RH','ENCADRANT')")
     public ResponseEntity<Page<StageResponse>> rechercher(
+            @AuthenticationPrincipal UserDetails userDetails,
             @RequestParam(required = false) String keyword,
             @RequestParam(required = false) StageStatus statut,
             @RequestParam(required = false) String typeStage,
@@ -103,7 +104,19 @@ public class StageController {
         Pageable pageable = PageRequest.of(page, size,
                 sortDir.equals("asc") ? Sort.by(sortBy).ascending() : Sort.by(sortBy).descending());
 
-        return ResponseEntity.ok(stageService.rechercher(keyword, statut, typeStage, departementId, pageable));
+        // Si l'utilisateur est ENCADRANT, filtrer uniquement ses stages
+        Long encadrantId = null;
+        boolean isEncadrant = userDetails.getAuthorities().stream()
+                .anyMatch(a -> a.getAuthority().equals("ROLE_ENCADRANT"));
+        if (isEncadrant) {
+            User user = userRepository.findByUsername(userDetails.getUsername())
+                    .orElseThrow(() -> new ResourceNotFoundException("Utilisateur introuvable"));
+            Encadrant encadrant = encadrantRepository.findByUserId(user.getId())
+                    .orElseThrow(() -> new ResourceNotFoundException("Profil encadrant introuvable"));
+            encadrantId = encadrant.getId();
+        }
+
+        return ResponseEntity.ok(stageService.rechercher(keyword, statut, typeStage, departementId, encadrantId, pageable));
     }
 
     @GetMapping("/mes-stages")
