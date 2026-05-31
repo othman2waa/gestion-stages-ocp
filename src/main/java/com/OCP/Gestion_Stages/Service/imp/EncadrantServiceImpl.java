@@ -4,15 +4,19 @@ import com.OCP.Gestion_Stages.Repository.*;
 import com.OCP.Gestion_Stages.Service.interfaces.EncadrantService;
 import com.OCP.Gestion_Stages.domain.dto.encadrant.EncadrantRequest;
 import com.OCP.Gestion_Stages.domain.dto.encadrant.EncadrantResponse;
+import com.OCP.Gestion_Stages.domain.enums.UserRole;
 import com.OCP.Gestion_Stages.domain.model.Departement;
 import com.OCP.Gestion_Stages.domain.model.Encadrant;
 import com.OCP.Gestion_Stages.domain.model.User;
 import com.OCP.Gestion_Stages.exeptions.ResourceNotFoundException;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.text.Normalizer;
 import java.util.List;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 import com.OCP.Gestion_Stages.domain.dto.encadrant.MonProfilEncadrantResponse;
@@ -30,6 +34,7 @@ public class EncadrantServiceImpl implements EncadrantService {
     private final SuiviHebdomadaireRepository suiviRepository;
     private final UserRepository userRepository;
     private final StageRepository stageRepository;
+    private final PasswordEncoder passwordEncoder;
 
     @Override
     public List<EncadrantResponse> findAll() {
@@ -47,7 +52,38 @@ public class EncadrantServiceImpl implements EncadrantService {
     public EncadrantResponse create(EncadrantRequest request) {
         Encadrant encadrant = new Encadrant();
         mapToEntity(request, encadrant);
-        return toResponse(encadrantRepository.save(encadrant));
+
+        // Auto-créer un compte utilisateur
+        String username = generateUsername(request.getPrenom(), request.getNom());
+        String rawPassword = "OCP@" + UUID.randomUUID().toString().substring(0, 8).toUpperCase();
+
+        User user = User.builder()
+                .username(username)
+                .email(request.getEmail())
+                .password(passwordEncoder.encode(rawPassword))
+                .role(UserRole.ENCADRANT)
+                .actif(true)
+                .build();
+        user = userRepository.save(user);
+        encadrant.setUser(user);
+
+        EncadrantResponse response = toResponse(encadrantRepository.save(encadrant));
+        response.setUsername(username);
+        response.setGeneratedPassword(rawPassword);
+        return response;
+    }
+
+    private String generateUsername(String prenom, String nom) {
+        String base = Normalizer.normalize(prenom.toLowerCase().trim() + "." + nom.toLowerCase().trim(), Normalizer.Form.NFD)
+                .replaceAll("[^a-z.]", "");
+        // Vérifier l'unicité
+        String username = base;
+        int suffix = 1;
+        while (userRepository.existsByUsername(username)) {
+            username = base + suffix;
+            suffix++;
+        }
+        return username;
     }
 
     @Override
