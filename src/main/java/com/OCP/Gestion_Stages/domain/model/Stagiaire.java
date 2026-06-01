@@ -2,6 +2,7 @@ package com.OCP.Gestion_Stages.domain.model;
 
 import jakarta.persistence.*;
 import lombok.*;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 @Entity
@@ -84,5 +85,20 @@ public class Stagiaire {
 
     @Column(name = "fiche_renseignement_completee")
     private Boolean ficheRenseignementCompletee = false;
+
+    @Column(name = "date_naissance")
+    private LocalDate dateNaissance;
+
+    @Column(name = "sexe", length = 10)
+    private String sexe;
+
+    @Column(name = "nationalite", length = 50)
+    private String nationalite;
+
+    @Column(name = "lieu_naissance", length = 100)
+    private String lieuNaissance;
+
+    @Column(name = "date_desactivation_prevue")
+    private LocalDate dateDesactivationPrevue;
 
 }

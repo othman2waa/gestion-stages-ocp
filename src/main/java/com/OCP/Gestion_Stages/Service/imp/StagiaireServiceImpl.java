@@ -241,6 +241,8 @@ public class StagiaireServiceImpl implements StagiaireService {
             });
         }
 
+        dash.setDateDesactivationPrevue(stagiaire.getDateDesactivationPrevue());
+
         return dash;
     }
 

@@ -35,4 +35,7 @@ public class MonDashboardResponse {
 
     // Progression (0-100)
     private int progression;
+
+    // Cycle de vie du compte
+    private LocalDate dateDesactivationPrevue;
 }
