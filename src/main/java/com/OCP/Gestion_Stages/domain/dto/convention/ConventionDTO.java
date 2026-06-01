@@ -13,6 +13,8 @@ public class ConventionDTO {
     private String statutSignature;
     private Boolean stagiaireSigne;
     private Boolean encadrantSigne;
+    private LocalDateTime dateSignatureStagiaire;
+    private LocalDateTime dateSignatureEncadrant;
     private LocalDate dateEmission;
     private LocalDateTime createdAt;
     private Long stageId;

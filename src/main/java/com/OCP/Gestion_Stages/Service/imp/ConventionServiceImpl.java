@@ -236,6 +236,8 @@ public class ConventionServiceImpl implements ConventionService, ConventionServi
                 .statutSignature(c.getStatutSignature() != null ? c.getStatutSignature() : "EN_ATTENTE")
                 .stagiaireSigne(c.getSignatureStagiaire() != null)
                 .encadrantSigne(c.getSignatureEncadrant() != null)
+                .dateSignatureStagiaire(c.getDateSignatureStagiaire())
+                .dateSignatureEncadrant(c.getDateSignatureEncadrant())
                 .dateEmission(c.getDateEmission())
                 .createdAt(c.getCreatedAt())
                 .stageId(s != null ? s.getId() : null)
