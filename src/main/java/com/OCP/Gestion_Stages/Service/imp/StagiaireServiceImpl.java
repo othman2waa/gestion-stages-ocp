@@ -84,6 +84,14 @@ public class StagiaireServiceImpl implements StagiaireService {
                 .stream().map(this::toResponse).collect(Collectors.toList());
     }
 
+    @Override
+    public org.springframework.data.domain.Page<StagiaireResponse> rechercher(
+            String keyword, String niveau, String filiere, Long departementId,
+            org.springframework.data.domain.Pageable pageable) {
+        return stagiaireRepository.rechercher(keyword, niveau, filiere, departementId, pageable)
+                .map(this::toResponse);
+    }
+
     private void mapToEntity(StagiaireRequest request, Stagiaire stagiaire) {
         stagiaire.setNom(request.getNom());
         stagiaire.setPrenom(request.getPrenom());

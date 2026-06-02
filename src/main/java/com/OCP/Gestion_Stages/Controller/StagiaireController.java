@@ -6,6 +6,10 @@ import com.OCP.Gestion_Stages.domain.dto.stagiaire.StagiaireRequest;
 import com.OCP.Gestion_Stages.domain.dto.stagiaire.StagiaireResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -66,6 +70,22 @@ public class StagiaireController {
     @PreAuthorize("hasAnyRole('ADMIN_RH','RESPONSABLE_RH','ENCADRANT')")
     public ResponseEntity<List<StagiaireResponse>> search(@RequestParam String keyword) {
         return ResponseEntity.ok(stagiaireService.search(keyword));
+    }
+
+    @GetMapping("/rechercher")
+    @PreAuthorize("hasAnyRole('ADMIN_RH','RESPONSABLE_RH','ENCADRANT')")
+    public ResponseEntity<Page<StagiaireResponse>> rechercher(
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) String niveau,
+            @RequestParam(required = false) String filiere,
+            @RequestParam(required = false) Long departementId,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "12") int size,
+            @RequestParam(defaultValue = "nom") String sortBy,
+            @RequestParam(defaultValue = "asc") String sortDir) {
+        Pageable pageable = PageRequest.of(page, size,
+                sortDir.equals("asc") ? Sort.by(sortBy).ascending() : Sort.by(sortBy).descending());
+        return ResponseEntity.ok(stagiaireService.rechercher(keyword, niveau, filiere, departementId, pageable));
     }
     @GetMapping("/mon-dashboard")
     @PreAuthorize("hasRole('STAGIAIRE')")
