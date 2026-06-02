@@ -49,6 +49,50 @@ public class ConventionController {
         return ResponseEntity.ok(conventionServiceExtended.getByIdDTO(id));
     }
 
+    // ── Service CRUD basique
+    private final ConventionService conventionService;
+
+    // ════════════════════════════════════════
+    // CRÉATION / MISE À JOUR
+    // ════════════════════════════════════════
+    @PostMapping
+    @PreAuthorize("hasAnyRole('ADMIN_RH','RESPONSABLE_RH')")
+    public ResponseEntity<ConventionDTO> create(@RequestBody Map<String, Object> body) {
+        com.OCP.Gestion_Stages.domain.dto.convention.ConventionRequest req =
+                new com.OCP.Gestion_Stages.domain.dto.convention.ConventionRequest();
+        req.setStageId(Long.valueOf(body.get("stageId").toString()));
+        req.setNumero(body.getOrDefault("numero", "").toString());
+        if (body.containsKey("statut") && body.get("statut") != null) {
+            req.setStatut(com.OCP.Gestion_Stages.domain.enums.ConventionStatus.valueOf(body.get("statut").toString()));
+        }
+        if (body.containsKey("dateEmission") && body.get("dateEmission") != null) {
+            req.setDateEmission(java.time.LocalDate.parse(body.get("dateEmission").toString().substring(0, 10)));
+        }
+        var resp = conventionService.create(req);
+        Convention c = conventionRepository.findById(resp.getId())
+                .orElseThrow(() -> new ResourceNotFoundException("Convention introuvable"));
+        return ResponseEntity.ok(conventionServiceExtended.toDTO(c));
+    }
+
+    @PutMapping("/{id}")
+    @PreAuthorize("hasAnyRole('ADMIN_RH','RESPONSABLE_RH')")
+    public ResponseEntity<ConventionDTO> update(@PathVariable Long id, @RequestBody Map<String, Object> body) {
+        com.OCP.Gestion_Stages.domain.dto.convention.ConventionRequest req =
+                new com.OCP.Gestion_Stages.domain.dto.convention.ConventionRequest();
+        if (body.containsKey("stageId")) req.setStageId(Long.valueOf(body.get("stageId").toString()));
+        if (body.containsKey("numero")) req.setNumero(body.get("numero").toString());
+        if (body.containsKey("statut") && body.get("statut") != null) {
+            req.setStatut(com.OCP.Gestion_Stages.domain.enums.ConventionStatus.valueOf(body.get("statut").toString()));
+        }
+        if (body.containsKey("dateEmission") && body.get("dateEmission") != null) {
+            req.setDateEmission(java.time.LocalDate.parse(body.get("dateEmission").toString().substring(0, 10)));
+        }
+        conventionService.update(id, req);
+        Convention c = conventionRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Convention introuvable"));
+        return ResponseEntity.ok(conventionServiceExtended.toDTO(c));
+    }
+
     // ════════════════════════════════════════
     // GÉNÉRATION + SIGNATURE
     // ════════════════════════════════════════

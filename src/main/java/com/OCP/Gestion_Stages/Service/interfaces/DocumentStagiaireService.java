@@ -17,4 +17,6 @@ public interface DocumentStagiaireService {
     DocumentStagiaire download(Long documentId);
 
     void delete(String username, Long documentId);
+
+    boolean isDossierComplet(Long stagiaireId);
 }

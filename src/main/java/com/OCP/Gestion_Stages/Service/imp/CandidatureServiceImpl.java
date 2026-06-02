@@ -5,6 +5,7 @@ import com.OCP.Gestion_Stages.Service.EmailService;
 import com.OCP.Gestion_Stages.Service.OllamaService;
 import com.OCP.Gestion_Stages.Service.interfaces.CandidatureService;
 import com.OCP.Gestion_Stages.Service.interfaces.CandidatureServiceExtended;
+import com.OCP.Gestion_Stages.Service.interfaces.ConventionServiceExtended;
 import com.OCP.Gestion_Stages.domain.dto.candidature.*;
 import com.OCP.Gestion_Stages.domain.enums.StageStatus;
 import com.OCP.Gestion_Stages.domain.enums.TypeStage;
@@ -44,6 +45,10 @@ public class CandidatureServiceImpl implements CandidatureService, CandidatureSe
     private final OllamaService ollamaService;
     private final org.springframework.context.ApplicationContext applicationContext;
     private final DocumentCandidatureRepository documentCandidatureRepository;
+    private final DocumentStagiaireRepository documentStagiaireRepository;
+    private final ConventionServiceExtended conventionServiceExtended;
+
+    private static final java.util.List<String> REQUIRED_DOCS = java.util.List.of("CV", "CIN", "PHOTO", "DIPLOME");
 
     @Override
     public CandidatureResponse soumettre(CandidatureRequest request, MultipartFile cv) throws IOException {
@@ -222,6 +227,17 @@ public class CandidatureServiceImpl implements CandidatureService, CandidatureSe
             departementRepository.findById(request.getDepartementId()).ifPresent(stage::setDepartement);
 
         stageRepository.save(stage);
+
+        // Auto-génération convocation si tous les docs requis déjà présents
+        try {
+            if (REQUIRED_DOCS.stream().allMatch(type ->
+                    documentStagiaireRepository.existsByStagiaireIdAndTypeDocument(stagiaire.getId(), type))) {
+                conventionServiceExtended.generer(stage.getId());
+                log.info("Convocation auto-générée pour stage {} après acceptation candidature", stage.getId());
+            }
+        } catch (Exception e) {
+            log.warn("Erreur auto-génération convocation après acceptation: {}", e.getMessage());
+        }
 
         // Créer checklist onboarding automatiquement
         creerChecklistOnboarding(stagiaire);
