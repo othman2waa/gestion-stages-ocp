@@ -233,5 +233,5 @@ public class CandidatureController {
                         .filter(c -> statutsRH.contains(c.getStatut()))
                         .collect(java.util.stream.Collectors.toList())
         );
-    }
+    } 
 }
