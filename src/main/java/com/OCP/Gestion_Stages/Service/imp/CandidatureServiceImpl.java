@@ -2,6 +2,7 @@ package com.OCP.Gestion_Stages.Service.imp;
 
 import com.OCP.Gestion_Stages.Repository.*;
 import com.OCP.Gestion_Stages.Service.EmailService;
+import com.OCP.Gestion_Stages.Service.FileStorageService;
 import com.OCP.Gestion_Stages.Service.OllamaService;
 import com.OCP.Gestion_Stages.Service.interfaces.CandidatureService;
 import com.OCP.Gestion_Stages.Service.interfaces.CandidatureServiceExtended;
@@ -43,10 +44,13 @@ public class CandidatureServiceImpl implements CandidatureService, CandidatureSe
     private final PasswordEncoder passwordEncoder;
     private final AnnonceStageRepository annonceRepository;
     private final OllamaService ollamaService;
-    private final org.springframework.context.ApplicationContext applicationContext;
+    private final ApplicationContext applicationContext;
     private final DocumentCandidatureRepository documentCandidatureRepository;
     private final DocumentStagiaireRepository documentStagiaireRepository;
     private final ConventionServiceExtended conventionServiceExtended;
+    private final EtablissementRepository etablissementRepository;
+    private final OnboardingChecklistRepository onboardingChecklistRepository;
+    private final FileStorageService fileStorageService;
 
     private static final java.util.List<String> REQUIRED_DOCS = java.util.List.of("CV", "CIN", "PHOTO", "DIPLOME");
 
@@ -117,7 +121,7 @@ public class CandidatureServiceImpl implements CandidatureService, CandidatureSe
             }
         }
         if (cv != null && !cv.isEmpty()) {
-            c.setCvContenu(cv.getBytes());
+            c.setCvChemin(fileStorageService.store(cv.getBytes(), cv.getOriginalFilename()));
             c.setCvNomFichier(cv.getOriginalFilename());
         }
         Candidature saved = candidatureRepository.save(c);
@@ -130,6 +134,12 @@ public class CandidatureServiceImpl implements CandidatureService, CandidatureSe
     public CandidatureResponse traiter(Long id, TraiterCandidatureRequest request, String username) throws Exception {
         Candidature c = candidatureRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Candidature introuvable : " + id));
+
+        // Garde : empêcher le double-traitement
+        if ("ACCEPTEE".equals(c.getStatut()) || "REFUSEE".equals(c.getStatut())) {
+            log.warn("Candidature {} déjà traitée (statut={}), opération ignorée", id, c.getStatut());
+            return toResponse(c);
+        }
 
         c.setStatut(request.getStatut());
         c.setCommentaireRh(request.getCommentaireRh());
@@ -146,9 +156,15 @@ public class CandidatureServiceImpl implements CandidatureService, CandidatureSe
     }
 
     private void creerCompteStagiaire(Candidature c, TraiterCandidatureRequest request) {
-        String username = (c.getPrenom().toLowerCase() + "." + c.getNom().toLowerCase())
-                .replaceAll("[^a-z.]", "");
-        String password = "OCP@" + UUID.randomUUID().toString().substring(0, 8).toUpperCase();
+        // Vérifier si un compte existe déjà pour cet email
+        if (userRepository.existsByEmail(c.getEmail())) {
+            log.warn("Un compte existe déjà pour l'email {}, création ignorée", c.getEmail());
+            return;
+        }
+
+        // Générer un username unique (prenom.nom, avec suffixe si collision)
+        String username = genererUsernameUnique(c.getPrenom(), c.getNom());
+        String password = genererMotDePasse();
 
         // Créer compte user
         User user = User.builder()
@@ -172,11 +188,9 @@ public class CandidatureServiceImpl implements CandidatureService, CandidatureSe
             departementRepository.findById(request.getDepartementId())
                     .ifPresent(stagiaire::setDepartement);
 
-        // Chercher ou créer établissement
+        // Chercher établissement
         if (c.getEtablissement() != null && !c.getEtablissement().isEmpty()) {
-            com.OCP.Gestion_Stages.Repository.EtablissementRepository etabRepo =
-                    applicationContext.getBean(com.OCP.Gestion_Stages.Repository.EtablissementRepository.class);
-            etabRepo.findByNomContainingIgnoreCase(c.getEtablissement()).stream().findFirst()
+            etablissementRepository.findByNomContainingIgnoreCase(c.getEtablissement()).stream().findFirst()
                     .ifPresent(stagiaire::setEtablissement);
         }
 
@@ -218,9 +232,34 @@ public class CandidatureServiceImpl implements CandidatureService, CandidatureSe
 
         stage.setStatut(StageStatus.VALIDEE);
 
-        // Encadrant
-        if (request.getEncadrantId() != null)
+        // Encadrant — assigné explicitement ou auto-détecté par département
+        if (request.getEncadrantId() != null) {
             encadrantRepository.findById(request.getEncadrantId()).ifPresent(stage::setEncadrant);
+        } else if (request.getDepartementId() != null) {
+            // Auto-assigner le premier encadrant du même département
+            List<Encadrant> encadrantsDept = encadrantRepository.findByDepartementId(request.getDepartementId());
+            if (!encadrantsDept.isEmpty()) {
+                stage.setEncadrant(encadrantsDept.get(0));
+                log.info("Encadrant auto-assigné {} pour stage département {}", encadrantsDept.get(0).getId(), request.getDepartementId());
+            }
+        }
+
+        // Garantie : ne jamais créer un stage orphelin si un encadrant existe.
+        // (encadrantId invalide, département vide d'encadrants, ou aucun département fourni)
+        if (stage.getEncadrant() == null) {
+            Long deptId = request.getDepartementId() != null ? request.getDepartementId()
+                    : (c.getDepartement() != null ? c.getDepartement().getId() : null);
+            if (deptId != null) {
+                List<Encadrant> dispo = encadrantRepository.findByDepartementId(deptId);
+                if (!dispo.isEmpty()) {
+                    stage.setEncadrant(dispo.get(0));
+                    log.warn("creerCompteStagiaire: fallback encadrant département {} (id={})", deptId, dispo.get(0).getId());
+                }
+            }
+            if (stage.getEncadrant() == null) {
+                log.error("creerCompteStagiaire: stage créé SANS encadrant (candidature={}) — invisible dans toute liste encadrant", c.getId());
+            }
+        }
 
         // Département
         if (request.getDepartementId() != null)
@@ -246,11 +285,31 @@ public class CandidatureServiceImpl implements CandidatureService, CandidatureSe
         envoyerEmailAcceptation(c.getEmail(), c.getPrenom() + " " + c.getNom(), username, password);
     }
 
+    /**
+     * Génère un username unique en ajoutant un suffixe numérique si collision.
+     * Ex: ahmed.dupont → ahmed.dupont, ahmed.dupont1, ahmed.dupont2...
+     */
+    String genererUsernameUnique(String prenom, String nom) {
+        String base = (prenom.toLowerCase() + "." + nom.toLowerCase())
+                .replaceAll("[^a-z.]", "");
+        String candidate = base;
+        int suffix = 1;
+        while (userRepository.existsByUsername(candidate)) {
+            candidate = base + suffix;
+            suffix++;
+        }
+        return candidate;
+    }
+
+    /**
+     * Génère un mot de passe temporaire sécurisé : OCP@ + 8 caractères UUID.
+     */
+    String genererMotDePasse() {
+        return "OCP@" + UUID.randomUUID().toString().substring(0, 8).toUpperCase();
+    }
+
     private void creerChecklistOnboarding(Stagiaire stagiaire) {
         try {
-            com.OCP.Gestion_Stages.Repository.OnboardingChecklistRepository checklistRepo =
-                    applicationContext.getBean(com.OCP.Gestion_Stages.Repository.OnboardingChecklistRepository.class);
-
             Object[][] etapes = {
                     {"Remise badge accès", "ADMINISTRATIF", "Remettre le badge d'accès OCP au stagiaire", 1},
                     {"Signature contrat stage", "ADMINISTRATIF", "Faire signer la convention de stage", 2},
@@ -273,7 +332,7 @@ public class CandidatureServiceImpl implements CandidatureService, CandidatureSe
                 item.setDescription((String) etape[2]);
                 item.setOrdre((Integer) etape[3]);
                 item.setCompleted(false);
-                checklistRepo.save(item);
+                onboardingChecklistRepository.save(item);
             }
         } catch (Exception e) {
             log.warn("Checklist onboarding non créée : {}", e.getMessage());
@@ -387,7 +446,7 @@ public class CandidatureServiceImpl implements CandidatureService, CandidatureSe
     public byte[] getCv(Long id) {
         Candidature c = candidatureRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Candidature introuvable"));
-        return c.getCvContenu();
+        return c.getCvChemin() != null ? fileStorageService.read(c.getCvChemin()) : c.getCvContenu();
     }
 
     private CandidatureResponse toResponse(Candidature c) {
@@ -406,7 +465,8 @@ public class CandidatureServiceImpl implements CandidatureService, CandidatureSe
         r.setStatut(c.getStatut());
         r.setCommentaireRh(c.getCommentaireRh());
         r.setCvNomFichier(c.getCvNomFichier());
-        r.setHasCv(c.getCvContenu() != null);
+        // Évite de charger le blob/fichier : un CV existe si on a un chemin, un nom, ou du legacy.
+        r.setHasCv(c.getCvChemin() != null || c.getCvNomFichier() != null);
         r.setCreatedAt(c.getCreatedAt());
         r.setTraiteAt(c.getTraiteAt());
         r.setTraitePar(c.getTraitePar());
@@ -439,9 +499,16 @@ public class CandidatureServiceImpl implements CandidatureService, CandidatureSe
 
     @Override
     public CandidatureDTO decisionEncadrant(Long id, String decision,
-                                            String note, String username) throws Exception {
+                                            String note, String sujet, String username) throws Exception {
         Candidature c = candidatureRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Candidature introuvable"));
+
+        // Garde : empêcher le double-traitement
+        if ("ACCEPTEE_ENCADRANT".equals(c.getStatut()) || "REFUSEE_ENCADRANT".equals(c.getStatut())) {
+            log.warn("Candidature {} déjà traitée par encadrant (statut={})", id, c.getStatut());
+            return toDTO(c);
+        }
+
         c.setNoteEncadrant(note);
         c.setTraitePar(username);
         c.setTraiteAt(LocalDateTime.now());
@@ -450,58 +517,98 @@ public class CandidatureServiceImpl implements CandidatureService, CandidatureSe
             c.setStatut("ACCEPTEE_ENCADRANT");
             c.setStatutMeeting("VALIDE");
 
-            String usernameCandidat = (c.getPrenom().toLowerCase() + "." + c.getNom().toLowerCase())
-                    .replaceAll("[^a-z.]", "");
-            String password = "OCP@" + c.getId() + "2026";
+            // Lookup encadrant pour auto-affectation
+            Encadrant encadrant = encadrantRepository.findByUserUsername(username).orElse(null);
+            // Fallback : si l'action n'est pas faite par un encadrant (ex. compte RH/admin),
+            // rattacher le stage à un encadrant du département pour qu'il apparaisse dans sa liste.
+            if (encadrant == null && c.getDepartement() != null) {
+                List<Encadrant> encadrantsDept = encadrantRepository.findByDepartementId(c.getDepartement().getId());
+                if (!encadrantsDept.isEmpty()) {
+                    encadrant = encadrantsDept.get(0);
+                    log.warn("decisionEncadrant: aucun encadrant pour username={}, fallback encadrant département {} (id={})",
+                            username, c.getDepartement().getId(), encadrant.getId());
+                }
+            }
+            if (encadrant == null) {
+                log.error("decisionEncadrant: stage créé SANS encadrant (username={}, candidature={}) — il n'apparaîtra dans aucune liste encadrant",
+                        username, c.getId());
+            }
 
-            if (!userRepository.existsByUsername(usernameCandidat)) {
+            String usernameCandidat = genererUsernameUnique(c.getPrenom(), c.getNom());
+            String password = genererMotDePasse();
+
+            // 1. Créer compte User
+            User savedUser;
+            if (!userRepository.existsByEmail(c.getEmail())) {
                 User user = new User();
                 user.setUsername(usernameCandidat);
                 user.setEmail(c.getEmail());
                 user.setPassword(passwordEncoder.encode(password));
                 user.setRole(UserRole.STAGIAIRE);
                 user.setActif(true);
-                User savedUser = userRepository.save(user);
+                savedUser = userRepository.save(user);
                 c.setUsername(usernameCandidat);
                 c.setPasswordTemp(password);
+            } else {
+                savedUser = userRepository.findByEmail(c.getEmail()).orElse(null);
+                c.setUsername(savedUser != null ? savedUser.getUsername() : usernameCandidat);
+                c.setPasswordTemp("(compte existant)");
+            }
 
-                // Créer Stagiaire
-                boolean stagiaireExiste = stagiaireRepository.findAll().stream()
-                        .anyMatch(s -> s.getEmail().equals(c.getEmail()));
-                if (!stagiaireExiste) {
-                    Stagiaire stagiaire = new Stagiaire();
-                    stagiaire.setNom(c.getNom());
-                    stagiaire.setPrenom(c.getPrenom());
-                    stagiaire.setEmail(c.getEmail());
-                    stagiaire.setTelephone(c.getTelephone());
-                    stagiaire.setFiliere(c.getFiliere());
-                    stagiaire.setNiveau(c.getNiveau());
-                    stagiaire.setUser(savedUser);
-                    if (c.getDepartement() != null)
-                        stagiaire.setDepartement(c.getDepartement());
-                    stagiaireRepository.save(stagiaire);
+            // 2. Créer Stagiaire
+            Stagiaire stagiaire;
+            if (!stagiaireRepository.existsByEmail(c.getEmail())) {
+                stagiaire = new Stagiaire();
+                stagiaire.setNom(c.getNom());
+                stagiaire.setPrenom(c.getPrenom());
+                stagiaire.setEmail(c.getEmail());
+                stagiaire.setTelephone(c.getTelephone());
+                stagiaire.setFiliere(c.getFiliere());
+                stagiaire.setNiveau(c.getNiveau());
+                stagiaire.setUser(savedUser);
+                if (c.getDepartement() != null)
+                    stagiaire.setDepartement(c.getDepartement());
+                if (c.getEtablissement() != null && !c.getEtablissement().isEmpty()) {
+                    etablissementRepository.findByNomContainingIgnoreCase(c.getEtablissement())
+                            .stream().findFirst().ifPresent(stagiaire::setEtablissement);
+                }
+                stagiaire = stagiaireRepository.save(stagiaire);
+            } else {
+                stagiaire = stagiaireRepository.findByEmail(c.getEmail()).orElse(null);
+            }
+
+            // 3. Créer Stage directement (plus de passage par traiter/creerCompteStagiaire)
+            if (stagiaire != null) {
+                Stage stage = new Stage();
+                stage.setStagiaire(stagiaire);
+
+                String sujetFinal = (sujet != null && !sujet.isBlank()) ? sujet
+                        : (c.getSujetSouhaite() != null ? c.getSujetSouhaite() : "Stage OCP");
+                stage.setSujet(sujetFinal);
+                stage.setTypeStage(TypeStage.PFE);
+                stage.setStatut(StageStatus.VALIDEE);
+
+                if (encadrant != null) stage.setEncadrant(encadrant);
+                if (c.getDepartement() != null) stage.setDepartement(c.getDepartement());
+
+                stageRepository.save(stage);
+                log.info("Stage créé pour candidature {} — encadrant={}, sujet={}",
+                        c.getId(), encadrant != null ? encadrant.getId() : "aucun", sujetFinal);
+
+                // Checklist onboarding
+                try { creerChecklistOnboarding(stagiaire); } catch (Exception e) {
+                    log.warn("Erreur création checklist: {}", e.getMessage());
                 }
             }
 
-            // Créer Stage via traiter()
+            // 4. Email avec identifiants
             try {
-                TraiterCandidatureRequest req = new TraiterCandidatureRequest();
-                req.setStatut("ACCEPTEE");
-                req.setSujet(c.getSujetSouhaite() != null ? c.getSujetSouhaite() : "Stage OCP");
-                req.setTypeStage("PFE");
-                if (c.getDepartement() != null)
-                    req.setDepartementId(c.getDepartement().getId());
-                traiter(c.getId(), req, username);
-            } catch (Exception ignored) {}
-
-            try {
-                emailService.envoyerEmail(c.getEmail(),
-                        "✅ Candidature acceptée — OCP Group",
-                        "Bonjour " + c.getPrenom() + ",\n\nFélicitations !\n" +
-                                "Identifiants : " + c.getUsername() + " / " + c.getPasswordTemp() + "\n\n" +
-                                "Documents à uploader :\n1. Convention établissement\n2. Assurance\n3. CIN\n4. CV\n\n" +
-                                "Connectez-vous : http://localhost:4200\n\nOCP Group");
-            } catch (Exception ignored) {}
+                envoyerEmailAcceptation(c.getEmail(),
+                        c.getPrenom() + " " + c.getNom(),
+                        c.getUsername(), c.getPasswordTemp());
+            } catch (Exception e) {
+                log.warn("Erreur envoi email acceptation: {}", e.getMessage());
+            }
 
         } else {
             c.setStatut("REFUSEE_ENCADRANT");
@@ -531,7 +638,9 @@ public class CandidatureServiceImpl implements CandidatureService, CandidatureSe
         for (DocumentCandidature doc : docs) {
             int score = 75;
             String commentaire = "Document " + doc.getTypeDocument() + " : ";
-            if (doc.getContenu() != null && doc.getContenu().length > 0) { score += 10; commentaire += "Fichier reçu ✓. "; }
+            boolean fichierPresent = doc.getCheminFichier() != null
+                    || (doc.getContenu() != null && doc.getContenu().length > 0);
+            if (fichierPresent) { score += 10; commentaire += "Fichier reçu ✓. "; }
             if (doc.getNomFichier() != null && doc.getNomFichier().toLowerCase().contains("pdf")) { score += 5; commentaire += "Format PDF ✓. "; }
             doc.setScoreIa(score);
             doc.setStatutIa(score >= 80 ? "VALIDE" : "SUSPECT");
@@ -572,6 +681,18 @@ public class CandidatureServiceImpl implements CandidatureService, CandidatureSe
                         "Bonjour " + c.getPrenom() + ",\nVotre dossier a été validé.\n" +
                                 "Connectez-vous : http://localhost:4200\nOCP Group");
             } catch (Exception ignored) {}
+
+            // Génère automatiquement la convocation pour le stage VALIDEE du candidat
+            // → le stage passe à CONVENTION_GENEREE et l'espace stagiaire s'ouvre.
+            try {
+                stagiaireRepository.findByEmail(c.getEmail()).ifPresent(stg ->
+                        stageRepository.findByStagiaireId(stg.getId()).stream()
+                                .filter(s -> s.getStatut() == StageStatus.VALIDEE)
+                                .findFirst()
+                                .ifPresent(s -> conventionServiceExtended.generer(s.getId())));
+            } catch (Exception e) {
+                log.warn("Génération auto convocation à la validation RH échouée: {}", e.getMessage());
+            }
         } else {
             c.setStatut("REFUSEE_RH");
         }
@@ -582,15 +703,15 @@ public class CandidatureServiceImpl implements CandidatureService, CandidatureSe
 
     @Override
     public List<CandidatureDTO> getCandidaturesDepartement(String username) {
-        User user = userRepository.findByUsername(username)
-                .orElseThrow(() -> new ResourceNotFoundException("User introuvable"));
-        Encadrant encadrant = encadrantRepository.findAll().stream()
-                .filter(e -> e.getUser() != null && e.getUser().getId().equals(user.getId()))
-                .findFirst()
+        Encadrant encadrant = encadrantRepository.findByUserUsername(username)
                 .orElseThrow(() -> new ResourceNotFoundException("Encadrant introuvable"));
         if (encadrant.getDepartement() == null) return List.of();
+
+        // Ne retourner que les candidatures en attente de décision (pas les déjà traitées)
+        List<String> statutsActifs = List.of("EN_ATTENTE", "MEETING_PLANIFIE");
         return candidatureRepository
-                .findByDepartementIdOrderByCreatedAtDesc(encadrant.getDepartement().getId())
+                .findByDepartementIdAndStatutInOrderByScoreMatchingDesc(
+                        encadrant.getDepartement().getId(), statutsActifs)
                 .stream().map(this::toDTO).collect(Collectors.toList());
     }
 

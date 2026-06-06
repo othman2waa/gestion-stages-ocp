@@ -4,6 +4,9 @@ target/
 *.jar
 *.war
 
+# Fichiers uploadés (stockage disque)
+uploads/
+
 # IntelliJ
 .idea/
 *.iml

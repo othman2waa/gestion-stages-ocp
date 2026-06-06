@@ -1,6 +1,8 @@
 package com.OCP.Gestion_Stages.Controller;
 
 import com.OCP.Gestion_Stages.Repository.DepartementRepository;
+import com.OCP.Gestion_Stages.Service.FileStorageService;
+import com.OCP.Gestion_Stages.Service.OllamaService;
 import com.OCP.Gestion_Stages.Service.interfaces.CandidatureService;
 import com.OCP.Gestion_Stages.Service.interfaces.CandidatureServiceExtended;
 import com.OCP.Gestion_Stages.domain.dto.candidature.CandidatureDTO;
@@ -38,6 +40,8 @@ public class CandidatureController {
     private final CandidatureRepository candidatureRepository;
     private final DepartementRepository departementRepository;
     private final DocumentCandidatureRepository documentRepository;
+    private final OllamaService ollamaService;
+    private final FileStorageService fileStorageService;
 
     // ════════════════════════════════════════
     // PUBLIC — Soumettre candidature
@@ -128,7 +132,7 @@ public class CandidatureController {
             @AuthenticationPrincipal UserDetails userDetails) throws Exception {
         return ResponseEntity.ok(
                 candidatureServiceExtended.decisionEncadrant(
-                        id, body.get("decision"), body.get("note"), userDetails.getUsername()
+                        id, body.get("decision"), body.get("note"), body.get("sujet"), userDetails.getUsername()
                 )
         );
     }
@@ -145,16 +149,17 @@ public class CandidatureController {
         var c = candidatureRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Candidature introuvable"));
 
-        // Supprimer ancien document même type
+        // Supprimer ancien document même type (et son fichier disque)
         documentRepository.findByCandidatureId(id).stream()
                 .filter(d -> d.getTypeDocument().equals(typeDocument))
-                .forEach(documentRepository::delete);
+                .forEach(d -> { fileStorageService.delete(d.getCheminFichier()); documentRepository.delete(d); });
 
-        // Sauvegarder nouveau document
+        // Sauvegarder nouveau document sur disque
+        String chemin = fileStorageService.store(fichier.getBytes(), fichier.getOriginalFilename());
         documentRepository.save(DocumentCandidature.builder()
                 .candidature(c).typeDocument(typeDocument)
                 .nomFichier(fichier.getOriginalFilename())
-                .contenu(fichier.getBytes()).statutIa("NON_VERIFIE").build());
+                .cheminFichier(chemin).statutIa("NON_VERIFIE").build());
 
         long nbDocs = documentRepository.findByCandidatureId(id).size();
         if (nbDocs >= 4) { c.setStatut("DOCUMENTS_SOUMIS"); candidatureRepository.save(c); }
@@ -185,6 +190,27 @@ public class CandidatureController {
                     return m;
                 }).collect(Collectors.toList())
         );
+    }
+
+    @GetMapping("/{candidatureId}/documents/{docId}/download")
+    @PreAuthorize("hasAnyRole('ADMIN_RH','RESPONSABLE_RH','ENCADRANT')")
+    public ResponseEntity<byte[]> downloadDocument(
+            @PathVariable Long candidatureId,
+            @PathVariable Long docId) {
+        DocumentCandidature doc = documentRepository.findById(docId)
+                .orElseThrow(() -> new ResourceNotFoundException("Document introuvable"));
+        if (!doc.getCandidature().getId().equals(candidatureId))
+            throw new ResourceNotFoundException("Document non lié à cette candidature");
+        String contentType = doc.getNomFichier() != null && doc.getNomFichier().toLowerCase().endsWith(".pdf")
+                ? "application/pdf" : "application/octet-stream";
+        byte[] data = doc.getCheminFichier() != null
+                ? fileStorageService.read(doc.getCheminFichier())
+                : doc.getContenu();
+        return ResponseEntity.ok()
+                .contentType(MediaType.parseMediaType(contentType))
+                .header(HttpHeaders.CONTENT_DISPOSITION,
+                        "inline; filename=\"" + (doc.getNomFichier() != null ? doc.getNomFichier() : "document") + "\"")
+                .body(data);
     }
 
     @PostMapping("/{id}/verifier-ia")
@@ -220,6 +246,21 @@ public class CandidatureController {
 
 
 
+    // ── Score détaillé IA ──
+    @PostMapping("/{id}/score-detaille")
+    @PreAuthorize("hasRole('ENCADRANT')")
+    public ResponseEntity<Map<String, Object>> scoreDetaille(@PathVariable Long id) {
+        var candidature = candidatureRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Candidature introuvable"));
+        byte[] cvBytes = candidature.getCvChemin() != null
+                ? fileStorageService.read(candidature.getCvChemin())
+                : candidature.getCvContenu();
+        String texteCV = cvBytes != null ? new String(cvBytes) : "";
+        String specialite = candidature.getSpecialite() != null ? candidature.getSpecialite() : "";
+        String dept = candidature.getDepartement() != null ? candidature.getDepartement().getNom() : "";
+        return ResponseEntity.ok(ollamaService.calculerScoreMatchingDetaile(texteCV, specialite, dept));
+    }
+
     // ── RH — Candidatures à traiter uniquement
     @GetMapping("/rh")
     @PreAuthorize("hasAnyRole('ADMIN_RH','RESPONSABLE_RH')")
@@ -233,5 +274,5 @@ public class CandidatureController {
                         .filter(c -> statutsRH.contains(c.getStatut()))
                         .collect(java.util.stream.Collectors.toList())
         );
-    } 
+    }
 }

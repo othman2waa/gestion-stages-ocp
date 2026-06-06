@@ -30,8 +30,14 @@ public class DocumentStagiaire {
     @Column(name = "taille")
     private Long taille;
 
-    @Column(name = "contenu", nullable = false)
+    // Legacy : contenu en base (anciennes lignes). Les nouvelles utilisent cheminFichier.
+    @Basic(fetch = FetchType.LAZY)
+    @Column(name = "contenu")
     private byte[] contenu;
+
+    // Chemin relatif du fichier sur disque (stockage actuel).
+    @Column(name = "chemin_fichier", length = 500)
+    private String cheminFichier;
 
     @Column(name = "uploaded_at", updatable = false)
     private LocalDateTime uploadedAt;

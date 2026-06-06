@@ -19,4 +19,8 @@ public interface DocumentStagiaireRepository extends JpaRepository<DocumentStagi
 
     @Query("SELECT d.id, d.typeDocument, d.nomFichier, d.contentType, d.taille, d.uploadedAt FROM DocumentStagiaire d WHERE d.stagiaire.id = :stagiaireId")
     List<Object[]> findMetaByStagiaireId(Long stagiaireId);
+
+    // Migration bytea → disque : lignes encore stockées en base
+    @Query("SELECT d.id FROM DocumentStagiaire d WHERE d.cheminFichier IS NULL AND d.contenu IS NOT NULL")
+    List<Long> findIdsAMigrer();
 }

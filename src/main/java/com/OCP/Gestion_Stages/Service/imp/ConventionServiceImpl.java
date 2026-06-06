@@ -151,6 +151,10 @@ public class ConventionServiceImpl implements ConventionService, ConventionServi
     public ConventionDTO generer(Long stageId) {
         Stage stage = stageRepository.findById(stageId)
                 .orElseThrow(() -> new com.OCP.Gestion_Stages.exeptions.ResourceNotFoundException("Stage introuvable"));
+        // Idempotent : si une convention existe déjà pour ce stage, on la renvoie
+        // (évite les doublons et ne régresse pas le statut du stage).
+        var existante = conventionRepository.findByStageId(stageId);
+        if (existante.isPresent()) return toDTO(existante.get());
         Convention c = Convention.builder()
                 .stage(stage)
                 .statut(com.OCP.Gestion_Stages.domain.enums.ConventionStatus.EN_VALIDATION)

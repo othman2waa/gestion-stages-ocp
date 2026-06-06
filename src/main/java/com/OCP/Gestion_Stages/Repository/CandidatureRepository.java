@@ -20,5 +20,9 @@ public interface CandidatureRepository extends JpaRepository<Candidature, Long> 
     List<Candidature> findByDepartementIdOrderByCreatedAtDesc(Long departementId);
     long countByDepartementIdAndStatut(Long departementId, String statut);
 
+    List<Candidature> findByDepartementIdAndStatutInOrderByScoreMatchingDesc(Long departementId, List<String> statuts);
 
+    // Migration bytea → disque : CV encore stockés en base
+    @Query("SELECT c.id FROM Candidature c WHERE c.cvChemin IS NULL AND c.cvContenu IS NOT NULL")
+    List<Long> findCvIdsAMigrer();
 }

@@ -23,8 +23,14 @@ public class DocumentCandidature {
     @Column(name = "nom_fichier", length = 255)
     private String nomFichier;
 
+    // Legacy : contenu en base (anciennes lignes). Les nouvelles utilisent cheminFichier.
+    @Basic(fetch = FetchType.LAZY)
     @Column(name = "contenu")
     private byte[] contenu;
+
+    // Chemin relatif du fichier sur disque (stockage actuel).
+    @Column(name = "chemin_fichier", length = 500)
+    private String cheminFichier;
 
     @Column(name = "uploaded_at", updatable = false)
     private LocalDateTime uploadedAt;

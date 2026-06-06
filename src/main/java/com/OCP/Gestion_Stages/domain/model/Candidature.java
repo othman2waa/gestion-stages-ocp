@@ -53,11 +53,18 @@ public class Candidature {
     @Column(name = "commentaire_rh", columnDefinition = "TEXT")
     private String commentaireRh;
 
+    // LAZY : ne charge le CV qu'au download, pas dans les listes de candidatures.
+    // Effectif uniquement si l'enhancement bytecode Hibernate est activé (voir pom.xml).
+    @Basic(fetch = FetchType.LAZY)
     @Column(name = "cv_contenu", columnDefinition = "bytea")
     private byte[] cvContenu;
 
     @Column(name = "cv_nom_fichier")
     private String cvNomFichier;
+
+    // Chemin relatif du CV sur disque (stockage actuel ; cvContenu = legacy en base).
+    @Column(name = "cv_chemin", length = 500)
+    private String cvChemin;
 
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;

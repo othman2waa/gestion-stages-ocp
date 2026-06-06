@@ -1,5 +1,6 @@
 package com.OCP.Gestion_Stages.Controller;
 
+import com.OCP.Gestion_Stages.Service.FileStorageService;
 import com.OCP.Gestion_Stages.Service.interfaces.DocumentStagiaireService;
 import com.OCP.Gestion_Stages.domain.dto.stagiaire.DocumentStagiaireResponse;
 import com.OCP.Gestion_Stages.domain.model.DocumentStagiaire;
@@ -26,6 +27,7 @@ public class DocumentStagiaireController {
     private final DocumentStagiaireService documentService;
     private final StagiaireRepository stagiaireRepository;
     private final DocumentStagiaireRepository documentStagiaireRepository;
+    private final FileStorageService fileStorageService;
 
     /**
      * Upload ou remplacer un document (CV, CIN, PHOTO, DIPLOME, ASSURANCE, AUTRE)
@@ -66,12 +68,15 @@ public class DocumentStagiaireController {
     @PreAuthorize("hasAnyRole('STAGIAIRE','ADMIN_RH','RESPONSABLE_RH','ENCADRANT')")
     public ResponseEntity<byte[]> download(@PathVariable Long documentId) {
         DocumentStagiaire doc = documentService.download(documentId);
+        byte[] data = doc.getCheminFichier() != null
+                ? fileStorageService.read(doc.getCheminFichier())
+                : doc.getContenu();
         return ResponseEntity.ok()
                 .contentType(MediaType.parseMediaType(
                         doc.getContentType() != null ? doc.getContentType() : "application/octet-stream"))
                 .header(HttpHeaders.CONTENT_DISPOSITION,
                         "attachment; filename=\"" + doc.getNomFichier() + "\"")
-                .body(doc.getContenu());
+                .body(data);
     }
 
     /**

@@ -5,6 +5,7 @@ import com.OCP.Gestion_Stages.Repository.DocumentStagiaireRepository;
 import com.OCP.Gestion_Stages.Repository.StagiaireRepository;
 import com.OCP.Gestion_Stages.Repository.StageRepository;
 import com.OCP.Gestion_Stages.Repository.UserRepository;
+import com.OCP.Gestion_Stages.Service.FileStorageService;
 import com.OCP.Gestion_Stages.Service.interfaces.ConventionServiceExtended;
 import com.OCP.Gestion_Stages.Service.interfaces.DocumentStagiaireService;
 import com.OCP.Gestion_Stages.domain.dto.stagiaire.DocumentStagiaireResponse;
@@ -35,24 +36,29 @@ public class DocumentStagiaireServiceImpl implements DocumentStagiaireService {
     private final StageRepository stageRepository;
     private final ConventionRepository conventionRepository;
     private final ConventionServiceExtended conventionServiceExtended;
+    private final FileStorageService fileStorageService;
 
     @Override
     @Transactional
     public DocumentStagiaireResponse upload(String username, String typeDocument, MultipartFile file) {
         Stagiaire stagiaire = resolveStagiaire(username);
 
-        // Si un document du même type existe, on le remplace
+        // Si un document du même type existe, on le remplace (et on supprime son fichier disque)
         documentRepository.findByStagiaireIdAndTypeDocument(stagiaire.getId(), typeDocument)
-                .ifPresent(existing -> documentRepository.delete(existing));
+                .ifPresent(existing -> {
+                    fileStorageService.delete(existing.getCheminFichier());
+                    documentRepository.delete(existing);
+                });
 
         try {
+            String chemin = fileStorageService.store(file.getBytes(), file.getOriginalFilename());
             DocumentStagiaire doc = DocumentStagiaire.builder()
                     .stagiaire(stagiaire)
                     .typeDocument(typeDocument)
                     .nomFichier(file.getOriginalFilename())
                     .contentType(file.getContentType())
                     .taille(file.getSize())
-                    .contenu(file.getBytes())
+                    .cheminFichier(chemin)
                     .build();
 
             DocumentStagiaire saved = documentRepository.save(doc);
@@ -69,14 +75,16 @@ public class DocumentStagiaireServiceImpl implements DocumentStagiaireService {
     @Override
     public List<DocumentStagiaireResponse> getMesDocuments(String username) {
         Stagiaire stagiaire = resolveStagiaire(username);
-        return documentRepository.findByStagiaireId(stagiaire.getId())
-                .stream().map(this::toResponse).collect(Collectors.toList());
+        // Projection métadonnées seulement — ne charge pas le byte[] contenu en RAM
+        return documentRepository.findMetaByStagiaireId(stagiaire.getId())
+                .stream().map(this::toResponseMeta).collect(Collectors.toList());
     }
 
     @Override
     public List<DocumentStagiaireResponse> getDocumentsByStagiaireId(Long stagiaireId) {
-        return documentRepository.findByStagiaireId(stagiaireId)
-                .stream().map(this::toResponse).collect(Collectors.toList());
+        // Projection métadonnées seulement — ne charge pas le byte[] contenu en RAM
+        return documentRepository.findMetaByStagiaireId(stagiaireId)
+                .stream().map(this::toResponseMeta).collect(Collectors.toList());
     }
 
     @Override
@@ -95,6 +103,7 @@ public class DocumentStagiaireServiceImpl implements DocumentStagiaireService {
         if (!doc.getStagiaire().getId().equals(stagiaire.getId())) {
             throw new RuntimeException("Vous ne pouvez supprimer que vos propres documents");
         }
+        fileStorageService.delete(doc.getCheminFichier());
         documentRepository.delete(doc);
     }
 
@@ -136,6 +145,18 @@ public class DocumentStagiaireServiceImpl implements DocumentStagiaireService {
                 .contentType(doc.getContentType())
                 .taille(doc.getTaille())
                 .uploadedAt(doc.getUploadedAt())
+                .build();
+    }
+
+    // Mapping depuis la projection [id, typeDocument, nomFichier, contentType, taille, uploadedAt]
+    private DocumentStagiaireResponse toResponseMeta(Object[] r) {
+        return DocumentStagiaireResponse.builder()
+                .id((Long) r[0])
+                .typeDocument((String) r[1])
+                .nomFichier((String) r[2])
+                .contentType((String) r[3])
+                .taille((Long) r[4])
+                .uploadedAt((java.time.LocalDateTime) r[5])
                 .build();
     }
 }
