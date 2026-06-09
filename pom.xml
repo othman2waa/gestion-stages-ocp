@@ -109,6 +109,13 @@
             <type>pom</type>
         </dependency>
 
+        <!-- OCR (Tesseract via Tess4J) — extraction texte des images (CIN, photos) -->
+        <dependency>
+            <groupId>net.sourceforge.tess4j</groupId>
+            <artifactId>tess4j</artifactId>
+            <version>5.13.0</version>
+        </dependency>
+
         <!-- ===== Mail===== -->
         <dependency>
             <groupId>org.springframework.boot</groupId>

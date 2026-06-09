@@ -1,6 +1,7 @@
 package com.OCP.Gestion_Stages.Controller;
 
 import com.OCP.Gestion_Stages.Repository.DepartementRepository;
+import com.OCP.Gestion_Stages.Service.DocumentVerificationService;
 import com.OCP.Gestion_Stages.Service.FileStorageService;
 import com.OCP.Gestion_Stages.Service.OllamaService;
 import com.OCP.Gestion_Stages.Service.interfaces.CandidatureService;
@@ -42,6 +43,7 @@ public class CandidatureController {
     private final DocumentCandidatureRepository documentRepository;
     private final OllamaService ollamaService;
     private final FileStorageService fileStorageService;
+    private final DocumentVerificationService documentVerificationService;
 
     // ════════════════════════════════════════
     // PUBLIC — Soumettre candidature
@@ -157,10 +159,12 @@ public class CandidatureController {
 
         // Sauvegarder nouveau document sur disque
         String chemin = fileStorageService.store(fichier.getBytes(), fichier.getOriginalFilename());
-        documentRepository.save(DocumentCandidature.builder()
+        DocumentCandidature saved = documentRepository.save(DocumentCandidature.builder()
                 .candidature(c).typeDocument(typeDocument)
                 .nomFichier(fichier.getOriginalFilename())
-                .cheminFichier(chemin).statutIa("NON_VERIFIE").build());
+                .cheminFichier(chemin).statutIa("EN_COURS").build());
+        // Vérification IA en arrière-plan (l'upload répond immédiatement)
+        documentVerificationService.verifierAsync(saved.getId());
 
         long nbDocs = documentRepository.findByCandidatureId(id).size();
         if (nbDocs >= 4) { c.setStatut("DOCUMENTS_SOUMIS"); candidatureRepository.save(c); }

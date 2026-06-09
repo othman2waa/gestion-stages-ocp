@@ -25,10 +25,12 @@ public class OllamaService {
     private String ollamaUrl;
     @Value("${app.ollama.model:llama3.2:3b}")
     private String model;
-    @Value("${app.ollama.timeout-seconds:45}")
+    @Value("${app.ollama.timeout-seconds:120}")
     private long timeoutSeconds;
     @Value("${app.ollama.temperature:0.2}")
     private double temperature;
+    @Value("${app.ollama.embed-model:nomic-embed-text}")
+    private String embedModel;
 
     // Connexion bornée : si Ollama est down, on échoue vite au lieu de bloquer le thread.
     private final HttpClient httpClient = HttpClient.newBuilder()
@@ -269,7 +271,8 @@ public class OllamaService {
 
     public Map<String, Object> verifierDocument(String texteExtrait, String typeDocument, String nomFichier) {
         String prompt = """
-            Tu es un assistant RH chez OCP Group. Vérifie ce document et évalue sa validité.
+            Tu es un agent de contrôle documentaire chez OCP Group. Détermine si ce contenu
+            correspond VRAIMENT à un document AUTHENTIQUE du type attendu.
 
             Type attendu: %s
             Nom du fichier: %s
@@ -277,28 +280,47 @@ public class OllamaService {
             Contenu extrait:
             %s
 
-            Vérifie selon le type (CV: nom/formation/compétences ; CIN: numéro/nom/date ;
-            LETTRE_MOTIVATION: destinataire/objet ; ASSURANCE: police/dates).
+            Éléments caractéristiques par type :
+            - CV : nom/prénom, formation/diplôme, compétences, expériences ;
+            - CIN : numéro CIN, nom/prénom, date de naissance, mentions officielles ;
+            - LETTRE_MOTIVATION : destinataire, objet, corps motivé, signature ;
+            - ASSURANCE : numéro de police, assuré, dates de validité, assureur.
+
+            Sois STRICT : signale comme suspect un contenu vide, hors-sujet, incohérent,
+            ou qui ne ressemble pas à un vrai document du type demandé.
+            - typeCorrespond = true seulement si le contenu correspond bien au type attendu.
+            - score reflète la ressemblance à un vrai document (0 = faux/vide, 100 = authentique complet).
 
             JSON attendu UNIQUEMENT:
             {
-              "valide": true/false, "score": <0-100>, "typeDetecte": "...",
-              "elementsPresents": ["..."], "elementsManquants": ["..."],
-              "alertes": ["..."], "remarque": "..."
+              "valide": true/false,
+              "typeCorrespond": true/false,
+              "score": <0-100>,
+              "typeDetecte": "type réellement détecté",
+              "elementsManquants": ["..."],
+              "alertes": ["incohérence ou signe suspect"],
+              "remarque": "verdict en une phrase"
             }
             """.formatted(typeDocument, nomFichier, texteExtrait);
         try {
             JsonNode result = parseJson(callOllama(prompt, true));
-            if (result == null) return Map.of("valide", false, "score", 0, "remarque", "Impossible d'analyser le document");
+            if (result == null) return Map.of("valide", false, "score", 0, "typeCorrespond", false,
+                    "elementsManquants", java.util.List.of(), "alertes", java.util.List.of(),
+                    "remarque", "Impossible d'analyser le document");
             Map<String, Object> map = new HashMap<>();
             map.put("valide", result.path("valide").asBoolean(false));
+            map.put("typeCorrespond", result.path("typeCorrespond").asBoolean(false));
             map.put("score", clampScore(safeInt(result, "score")));
             map.put("typeDetecte", safeText(result, "typeDetecte"));
+            map.put("elementsManquants", safeList(result, "elementsManquants"));
+            map.put("alertes", safeList(result, "alertes"));
             map.put("remarque", safeText(result, "remarque"));
             return map;
         } catch (Exception e) {
             log.warn("Erreur vérification document IA: {}", e.getMessage());
-            return Map.of("valide", false, "score", 0, "remarque", "Service IA indisponible");
+            return Map.of("valide", false, "score", 0, "typeCorrespond", false,
+                    "elementsManquants", java.util.List.of(), "alertes", java.util.List.of(),
+                    "remarque", "Service IA indisponible");
         }
     }
 
@@ -375,6 +397,88 @@ public class OllamaService {
         }
     }
 
+    // ════════════════════════════════════════════════════════════
+    //  Matching sémantique par EMBEDDINGS (vecteurs) + scoring explicable
+    // ════════════════════════════════════════════════════════════
+
+    /** Calcule l'embedding (vecteur) d'un texte via Ollama. Renvoie null si indisponible. */
+    public float[] embed(String texte) {
+        if (texte == null || texte.isBlank()) return null;
+        try {
+            String url = ollamaUrl.replace("/api/generate", "/api/embeddings");
+            Map<String, Object> body = Map.of("model", embedModel, "prompt", texte.length() > 6000 ? texte.substring(0, 6000) : texte);
+            HttpRequest req = HttpRequest.newBuilder()
+                    .uri(URI.create(url))
+                    .timeout(Duration.ofSeconds(timeoutSeconds))
+                    .header("Content-Type", "application/json")
+                    .POST(HttpRequest.BodyPublishers.ofString(objectMapper.writeValueAsString(body)))
+                    .build();
+            HttpResponse<String> res = httpClient.send(req, HttpResponse.BodyHandlers.ofString());
+            JsonNode arr = objectMapper.readTree(res.body()).path("embedding");
+            if (!arr.isArray() || arr.isEmpty()) return null;
+            float[] v = new float[arr.size()];
+            for (int i = 0; i < arr.size(); i++) v[i] = (float) arr.get(i).asDouble();
+            return v;
+        } catch (Exception e) {
+            log.warn("Erreur embedding: {}", e.getMessage());
+            return null;
+        }
+    }
+
+    /** Similarité cosinus entre deux vecteurs (0 à 1). */
+    public double cosineSimilarity(float[] a, float[] b) {
+        if (a == null || b == null || a.length != b.length) return 0;
+        double dot = 0, na = 0, nb = 0;
+        for (int i = 0; i < a.length; i++) { dot += a[i] * b[i]; na += a[i] * a[i]; nb += b[i] * b[i]; }
+        if (na == 0 || nb == 0) return 0;
+        return dot / (Math.sqrt(na) * Math.sqrt(nb));
+    }
+
+    /**
+     * Matching CV ↔ poste EXPLICABLE : combine la similarité sémantique (embeddings),
+     * la couverture des compétences requises et l'adéquation du niveau, avec des poids transparents.
+     */
+    public Map<String, Object> matchingSemantique(String texteCV, String descriptionPoste,
+                                                   String competencesRequises, String niveauRequis) {
+        Map<String, Object> r = new HashMap<>();
+        String cv = texteCV == null ? "" : texteCV.toLowerCase();
+
+        // 1) Similarité sémantique (cosinus des embeddings → 0-100)
+        float[] eCv = embed(texteCV);
+        float[] ePoste = embed((descriptionPoste == null ? "" : descriptionPoste) + " "
+                + (competencesRequises == null ? "" : competencesRequises));
+        int scoreSemantique = (int) Math.round(Math.max(0, Math.min(1, cosineSimilarity(eCv, ePoste))) * 100);
+
+        // 2) Couverture des compétences requises (présence dans le CV)
+        java.util.List<String> trouvees = new java.util.ArrayList<>();
+        java.util.List<String> manquantes = new java.util.ArrayList<>();
+        if (competencesRequises != null && !competencesRequises.isBlank()) {
+            for (String comp : competencesRequises.split("[,;/]")) {
+                String c = comp.trim().toLowerCase();
+                if (c.isEmpty()) continue;
+                if (cv.contains(c)) trouvees.add(comp.trim()); else manquantes.add(comp.trim());
+            }
+        }
+        int totalComp = trouvees.size() + manquantes.size();
+        int scoreCompetences = totalComp == 0 ? scoreSemantique : (int) Math.round(100.0 * trouvees.size() / totalComp);
+
+        // 3) Adéquation du niveau
+        int scoreNiveau = (niveauRequis != null && !niveauRequis.isBlank()
+                && cv.contains(niveauRequis.toLowerCase())) ? 100 : 60;
+
+        // Score global pondéré (transparent)
+        int scoreGlobal = (int) Math.round(0.50 * scoreSemantique + 0.35 * scoreCompetences + 0.15 * scoreNiveau);
+
+        r.put("scoreGlobal", clampScore(scoreGlobal));
+        r.put("scoreSemantique", clampScore(scoreSemantique));
+        r.put("scoreCompetences", clampScore(scoreCompetences));
+        r.put("scoreNiveau", clampScore(scoreNiveau));
+        r.put("competencesTrouvees", trouvees);
+        r.put("competencesManquantes", manquantes);
+        r.put("methode", (eCv != null && ePoste != null) ? "embeddings" : "fallback-mots-cles");
+        return r;
+    }
+
     // ── Helpers ──
 
     private JsonNode parseJson(String text) {
@@ -400,6 +504,14 @@ public class OllamaService {
 
     private String safeText(JsonNode node, String field) {
         return node.has(field) ? node.get(field).asText("") : "";
+    }
+
+    private java.util.List<String> safeList(JsonNode node, String field) {
+        java.util.List<String> list = new java.util.ArrayList<>();
+        if (node.has(field) && node.get(field).isArray()) {
+            node.get(field).forEach(n -> list.add(n.asText("")));
+        }
+        return list;
     }
 
     private int clampScore(int score) {

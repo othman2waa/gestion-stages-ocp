@@ -1,6 +1,7 @@
 package com.OCP.Gestion_Stages.Service.imp;
 
 import com.OCP.Gestion_Stages.Repository.*;
+import com.OCP.Gestion_Stages.Service.DocumentVerificationService;
 import com.OCP.Gestion_Stages.Service.EmailService;
 import com.OCP.Gestion_Stages.Service.FileStorageService;
 import com.OCP.Gestion_Stages.Service.OllamaService;
@@ -51,6 +52,7 @@ public class CandidatureServiceImpl implements CandidatureService, CandidatureSe
     private final EtablissementRepository etablissementRepository;
     private final OnboardingChecklistRepository onboardingChecklistRepository;
     private final FileStorageService fileStorageService;
+    private final DocumentVerificationService documentVerificationService;
 
     private static final java.util.List<String> REQUIRED_DOCS = java.util.List.of("CV", "CIN", "PHOTO", "DIPLOME");
 
@@ -74,13 +76,13 @@ public class CandidatureServiceImpl implements CandidatureService, CandidatureSe
                         new org.apache.pdfbox.text.PDFTextStripper();
                 String texteCV = stripper.getText(pdfDoc);
                 pdfDoc.close();
+                // Scoring d'adéquation par LLM (discrimination correcte ; détail explicable via /score-detaille)
                 int score = ollamaService.calculerScoreMatchingSpecialite(
                         texteCV,
                         request.getSpecialite(),
-                        request.getDepartementSouhaite() != null ? request.getDepartementSouhaite() : "OCP Group"
-                );
+                        request.getDepartementSouhaite() != null ? request.getDepartementSouhaite() : "OCP Group");
                 c.setScoreMatching(score);
-                log.info("Score IA calculé: {} pour spécialité: {}", score, request.getSpecialite());
+                log.info("Score IA (LLM) : {} pour spécialité {}", score, request.getSpecialite());
             } catch (Exception e) {
                 log.warn("Erreur score IA: {}", e.getMessage());
             }
@@ -647,20 +649,27 @@ public class CandidatureServiceImpl implements CandidatureService, CandidatureSe
         java.util.List<DocumentCandidature> docs = documentCandidatureRepository.findByCandidatureId(id);
         int scoreGlobal = 0;
         java.util.List<String> commentaires = new java.util.ArrayList<>();
+        DocumentCandidature cvDoc = null, cinDoc = null;
 
+        // Chaque document est (ré)analysé par le même service que l'upload (source unique).
         for (DocumentCandidature doc : docs) {
-            int score = 75;
-            String commentaire = "Document " + doc.getTypeDocument() + " : ";
-            boolean fichierPresent = doc.getCheminFichier() != null
-                    || (doc.getContenu() != null && doc.getContenu().length > 0);
-            if (fichierPresent) { score += 10; commentaire += "Fichier reçu ✓. "; }
-            if (doc.getNomFichier() != null && doc.getNomFichier().toLowerCase().contains("pdf")) { score += 5; commentaire += "Format PDF ✓. "; }
-            doc.setScoreIa(score);
-            doc.setStatutIa(score >= 80 ? "VALIDE" : "SUSPECT");
-            doc.setCommentaireIa(commentaire);
-            documentCandidatureRepository.save(doc);
-            scoreGlobal += score;
-            commentaires.add(commentaire);
+            scoreGlobal += documentVerificationService.verifier(doc); // met à jour statut/score/commentaire
+            commentaires.add(doc.getCommentaireIa());
+            if ("CV".equalsIgnoreCase(doc.getTypeDocument())) cvDoc = doc;
+            if ("CIN".equalsIgnoreCase(doc.getTypeDocument())) cinDoc = doc;
+        }
+
+        // Cohérence CV ↔ CIN (nom/prénom) par Ollama
+        java.util.Map<String, Object> coherence = null;
+        if (cvDoc != null && cinDoc != null) {
+            String texteCV = documentVerificationService.extraireTexte(cvDoc);
+            String texteCIN = documentVerificationService.extraireTexte(cinDoc);
+            if (!texteCV.isBlank() && !texteCIN.isBlank()) {
+                coherence = ollamaService.verifierCoherenceDossier(
+                        documentVerificationService.tronquer(texteCV, 1500),
+                        documentVerificationService.tronquer(texteCIN, 1000),
+                        c.getNom(), c.getPrenom());
+            }
         }
 
         int scoreMoyen = docs.isEmpty() ? 0 : scoreGlobal / docs.size();
@@ -671,6 +680,7 @@ public class CandidatureServiceImpl implements CandidatureService, CandidatureSe
         result.put("scoreMoyen", scoreMoyen);
         result.put("nbDocuments", docs.size());
         result.put("commentaires", commentaires);
+        result.put("coherence", coherence);
         result.put("statut", scoreMoyen >= 80 ? "DOCUMENTS_VALIDES" : "DOCUMENTS_SUSPECTS");
         return result;
     }
