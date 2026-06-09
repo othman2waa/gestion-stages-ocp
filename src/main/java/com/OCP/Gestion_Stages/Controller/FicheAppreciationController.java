@@ -1,5 +1,6 @@
 package com.OCP.Gestion_Stages.Controller;
 
+import com.OCP.Gestion_Stages.Service.OllamaService;
 import com.OCP.Gestion_Stages.Service.interfaces.FicheAppreciationService;
 import com.OCP.Gestion_Stages.domain.dto.fiche.*;
 import jakarta.validation.Valid;
@@ -18,6 +19,7 @@ import java.util.List;
 public class FicheAppreciationController {
 
     private final FicheAppreciationService ficheService;
+    private final OllamaService ollamaService;
 
     // ── Fiche Stage ──
 
@@ -91,5 +93,18 @@ public class FicheAppreciationController {
     public ResponseEntity<List<FicheStagiaireResponse>> getMesFichesStagiaire(
             @AuthenticationPrincipal UserDetails userDetails) {
         return ResponseEntity.ok(ficheService.getMesFichesStagiaire(userDetails.getUsername()));
+    }
+
+    // ── Analyse IA performance ──
+
+    @PostMapping("/analyse-ia")
+    @PreAuthorize("hasRole('ENCADRANT')")
+    public ResponseEntity<java.util.Map<String, Object>> analyserPerformanceIA(
+            @RequestBody java.util.Map<String, Object> body) {
+        double tauxPresence = body.containsKey("tauxPresence") ? ((Number) body.get("tauxPresence")).doubleValue() : 0;
+        double moyenneNotes = body.containsKey("moyenneNotes") ? ((Number) body.get("moyenneNotes")).doubleValue() : 0;
+        String remarques = (String) body.getOrDefault("remarques", "");
+        String appreciation = (String) body.getOrDefault("appreciationGlobale", "");
+        return ResponseEntity.ok(ollamaService.analyserPerformanceStagiaire(tauxPresence, moyenneNotes, remarques, appreciation));
     }
 }

@@ -10,6 +10,7 @@ import java.util.Optional;
 public interface EncadrantRepository extends JpaRepository<Encadrant, Long> {
     Optional<Encadrant> findByEmail(String email);
     Optional<Encadrant> findByUserId(Long userId);
+    Optional<Encadrant> findByUserUsername(String username);
     List<Encadrant> findByDepartementId(Long departementId);
     long countByDepartementId(Long departementId);
     long count();

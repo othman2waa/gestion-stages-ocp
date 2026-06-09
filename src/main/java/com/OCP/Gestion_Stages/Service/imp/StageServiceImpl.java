@@ -2,7 +2,10 @@ package com.OCP.Gestion_Stages.Service.imp;
 
 import com.OCP.Gestion_Stages.Repository.*;
 import com.OCP.Gestion_Stages.Service.ArchiveStageService;
+import com.OCP.Gestion_Stages.Service.AttestationPdfService;
+import com.OCP.Gestion_Stages.Service.EmailService;
 import com.OCP.Gestion_Stages.Service.interfaces.StageService;
+import com.OCP.Gestion_Stages.domain.model.AttestationStage;
 import com.OCP.Gestion_Stages.domain.dto.stage.StageRequest;
 import com.OCP.Gestion_Stages.domain.dto.stage.StageResponse;
 import com.OCP.Gestion_Stages.domain.enums.StageStatus;
@@ -31,6 +34,9 @@ public class StageServiceImpl implements StageService {
     private final EncadrantRepository encadrantRepository;
     private final DepartementRepository departementRepository;
     private final ArchiveStageService archiveStageService;
+    private final AttestationStageRepository attestationRepository;
+    private final AttestationPdfService attestationPdfService;
+    private final EmailService emailService;
 
 
 
@@ -82,8 +88,37 @@ public class StageServiceImpl implements StageService {
         stage.setStatut(statut);
         Stage saved = stageRepository.save(stage);
 
-        // ── Trigger automatique archivage
+        // ── Trigger automatique attestation + archivage
         if (statut == StageStatus.TERMINE) {
+            // Auto-générer attestation si elle n'existe pas encore
+            try {
+                if (attestationRepository.findByStageId(id).isEmpty()) {
+                    AttestationStage att = new AttestationStage();
+                    att.setStage(saved);
+                    att.setStatut("APPROUVEE");
+                    att.setDateTraitement(java.time.LocalDateTime.now());
+                    att.setTraitePar("SYSTEME_AUTO");
+                    att.setNumeroAttestation("ATT-" + id + "-" +
+                            java.time.LocalDateTime.now().format(java.time.format.DateTimeFormatter.ofPattern("yyyyMM")));
+                    attestationRepository.save(att);
+                    log.info("Attestation auto-générée pour stage {}", id);
+
+                    // Générer PDF et envoyer par email
+                    if (saved.getStagiaire() != null && saved.getStagiaire().getEmail() != null) {
+                        try {
+                            byte[] pdf = attestationPdfService.genererAttestation(att);
+                            String nomStagiaire = saved.getStagiaire().getPrenom() + " " + saved.getStagiaire().getNom();
+                            emailService.envoyerAttestation(saved.getStagiaire().getEmail(), nomStagiaire, pdf);
+                        } catch (Exception ex) {
+                            log.warn("Erreur envoi attestation par email stage {}: {}", id, ex.getMessage());
+                        }
+                    }
+                }
+            } catch (Exception e) {
+                log.warn("Erreur génération attestation auto stage {}: {}", id, e.getMessage());
+            }
+
+            // Archivage automatique
             try {
                 archiveStageService.archiverStage(saved, "SYSTEME_AUTO");
                 log.info("Stage {} archivé automatiquement", id);

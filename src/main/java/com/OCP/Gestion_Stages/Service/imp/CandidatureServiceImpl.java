@@ -499,7 +499,7 @@ public class CandidatureServiceImpl implements CandidatureService, CandidatureSe
 
     @Override
     public CandidatureDTO decisionEncadrant(Long id, String decision,
-                                            String note, String sujet, String username) throws Exception {
+                                            String note, String sujet, String dateDebut, String dateFin, String username) throws Exception {
         Candidature c = candidatureRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Candidature introuvable"));
 
@@ -587,6 +587,19 @@ public class CandidatureServiceImpl implements CandidatureService, CandidatureSe
                 stage.setSujet(sujetFinal);
                 stage.setTypeStage(TypeStage.PFE);
                 stage.setStatut(StageStatus.VALIDEE);
+                // Période saisie par l'encadrant (sinon défaut PFE ~4 mois)
+                java.time.LocalDate debut, fin;
+                try {
+                    debut = (dateDebut != null && !dateDebut.isBlank())
+                            ? java.time.LocalDate.parse(dateDebut.substring(0, 10)) : java.time.LocalDate.now();
+                    fin = (dateFin != null && !dateFin.isBlank())
+                            ? java.time.LocalDate.parse(dateFin.substring(0, 10)) : debut.plusMonths(4);
+                } catch (Exception e) {
+                    debut = java.time.LocalDate.now();
+                    fin = debut.plusMonths(4);
+                }
+                stage.setDateDebut(debut);
+                stage.setDateFin(fin);
 
                 if (encadrant != null) stage.setEncadrant(encadrant);
                 if (c.getDepartement() != null) stage.setDepartement(c.getDepartement());

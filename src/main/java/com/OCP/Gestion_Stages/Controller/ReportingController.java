@@ -2,14 +2,17 @@ package com.OCP.Gestion_Stages.Controller;
 
 import com.OCP.Gestion_Stages.Repository.*;
 import com.OCP.Gestion_Stages.domain.enums.StageStatus;
+import com.OCP.Gestion_Stages.domain.enums.TypeStage;
+import com.OCP.Gestion_Stages.domain.model.Stage;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.List;
-import java.util.HashMap;
-import java.util.Map;
+import java.time.LocalDate;
+import java.time.temporal.ChronoUnit;
+import java.util.*;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/reporting")
@@ -123,5 +126,41 @@ public class ReportingController {
         stats.put("stagesParType",        stageRepository.countByTypeStage());
 
         return ResponseEntity.ok(stats);
+    }
+
+    @GetMapping("/pfe-bac5")
+    @PreAuthorize("hasAnyRole('ADMIN_RH','RESPONSABLE_RH')")
+    public ResponseEntity<List<Map<String, Object>>> getRapportPfeBac5(
+            @RequestParam(required = false) Integer annee,
+            @RequestParam(required = false) Long departementId) {
+
+        List<Stage> stages = stageRepository.findByTypeStageWithDetails(TypeStage.PFE);
+
+        List<Map<String, Object>> result = stages.stream()
+                .filter(s -> s.getStagiaire() != null)
+                .filter(s -> annee == null || (s.getDateDebut() != null && s.getDateDebut().getYear() == annee))
+                .filter(s -> departementId == null || (s.getDepartement() != null && s.getDepartement().getId().equals(departementId)))
+                .map(s -> {
+                    Map<String, Object> row = new LinkedHashMap<>();
+                    row.put("id", s.getId());
+                    row.put("nom", s.getStagiaire().getNom());
+                    row.put("prenom", s.getStagiaire().getPrenom());
+                    row.put("etablissement", s.getStagiaire().getEtablissement() != null
+                            ? s.getStagiaire().getEtablissement().getNom() : "—");
+                    row.put("departement", s.getDepartement() != null ? s.getDepartement().getNom() : "—");
+                    row.put("sujet", s.getSujet());
+                    row.put("dateDebut", s.getDateDebut());
+                    row.put("dateFin", s.getDateFin());
+                    row.put("dureeMois", s.getDateDebut() != null && s.getDateFin() != null
+                            ? ChronoUnit.MONTHS.between(s.getDateDebut(), s.getDateFin()) : null);
+                    row.put("encadrant", s.getEncadrant() != null
+                            ? s.getEncadrant().getPrenom() + " " + s.getEncadrant().getNom() : "—");
+                    row.put("statut", s.getStatut().name());
+                    row.put("niveau", s.getStagiaire().getNiveau());
+                    return row;
+                })
+                .collect(Collectors.toList());
+
+        return ResponseEntity.ok(result);
     }
 }

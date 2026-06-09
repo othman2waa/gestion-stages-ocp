@@ -61,4 +61,9 @@ AND (CAST(:encadrantId AS BIGINT) IS NULL OR e.id = CAST(:encadrantId AS BIGINT)
     );
     long countByDepartementId(Long departementId);
     long countByDepartementIdAndStatut(Long departementId, StageStatus statut);
+
+    List<Stage> findByStatutAndDateFinBefore(StageStatus statut, LocalDate date);
+
+    @Query("SELECT s FROM Stage s JOIN FETCH s.stagiaire JOIN FETCH s.departement LEFT JOIN FETCH s.encadrant WHERE s.typeStage = :typeStage")
+    List<Stage> findByTypeStageWithDetails(@Param("typeStage") TypeStage typeStage);
 }

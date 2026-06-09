@@ -8,7 +8,9 @@ import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
+import jakarta.activation.DataSource;
 import jakarta.mail.internet.MimeMessage;
+import jakarta.mail.util.ByteArrayDataSource;
 
 @Service
 @RequiredArgsConstructor
@@ -113,5 +115,46 @@ public class EmailService {
             </body></html>
             """.formatted(nomStagiaire, sujetStage, dateFin);
         envoyerEmail(destinataire, sujet, contenu);
+    }
+
+    @Async
+    public void envoyerEmailAvecPieceJointe(String destinataire, String sujet, String contenuHtml,
+                                             byte[] pieceJointe, String nomFichier) {
+        try {
+            MimeMessage message = mailSender.createMimeMessage();
+            MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
+            helper.setTo(destinataire);
+            helper.setSubject(sujet);
+            helper.setText(contenuHtml, true);
+            helper.setFrom("noreply@gestion-stages.com");
+            DataSource dataSource = new ByteArrayDataSource(pieceJointe, "application/pdf");
+            helper.addAttachment(nomFichier, dataSource);
+            mailSender.send(message);
+            log.info("Email avec pièce jointe envoyé à {}", destinataire);
+        } catch (Exception e) {
+            log.error("Erreur envoi email avec PJ à {}: {}", destinataire, e.getMessage());
+        }
+    }
+
+    @Async
+    public void envoyerAttestation(String destinataire, String nomStagiaire, byte[] attestationPdf) {
+        String sujet = "Votre attestation de stage — OCP Group";
+        String contenu = """
+            <html><body style="font-family: Arial, sans-serif; color: #333;">
+            <div style="max-width:600px;margin:auto;padding:20px;border:1px solid #e2e8f0;border-radius:8px;">
+                <div style="background:#00843D;padding:20px;border-radius:6px 6px 0 0;text-align:center;">
+                    <h1 style="color:white;margin:0;">Attestation de stage</h1>
+                </div>
+                <div style="padding:24px;">
+                    <p>Bonjour <strong>%s</strong>,</p>
+                    <p>Votre attestation de stage a été générée automatiquement et est jointe à cet email.</p>
+                    <p>Vous pouvez également la télécharger depuis votre espace stagiaire sur la plateforme.</p>
+                    <br>
+                    <p style="color:#64748b;font-size:0.875rem;">Cordialement,<br><strong>L'équipe RH — OCP</strong></p>
+                </div>
+            </div>
+            </body></html>
+            """.formatted(nomStagiaire);
+        envoyerEmailAvecPieceJointe(destinataire, sujet, contenu, attestationPdf, "attestation-stage-ocp.pdf");
     }
 }

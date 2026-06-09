@@ -155,6 +155,11 @@ public class ConventionServiceImpl implements ConventionService, ConventionServi
         // (évite les doublons et ne régresse pas le statut du stage).
         var existante = conventionRepository.findByStageId(stageId);
         if (existante.isPresent()) return toDTO(existante.get());
+
+        // Filet : si le stage n'a pas de dates, on en pose par défaut (sinon convocation sans période)
+        if (stage.getDateDebut() == null) stage.setDateDebut(java.time.LocalDate.now());
+        if (stage.getDateFin() == null)   stage.setDateFin(stage.getDateDebut().plusMonths(4));
+
         Convention c = Convention.builder()
                 .stage(stage)
                 .statut(com.OCP.Gestion_Stages.domain.enums.ConventionStatus.EN_VALIDATION)

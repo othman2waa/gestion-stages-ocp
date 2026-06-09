@@ -132,7 +132,8 @@ public class CandidatureController {
             @AuthenticationPrincipal UserDetails userDetails) throws Exception {
         return ResponseEntity.ok(
                 candidatureServiceExtended.decisionEncadrant(
-                        id, body.get("decision"), body.get("note"), body.get("sujet"), userDetails.getUsername()
+                        id, body.get("decision"), body.get("note"), body.get("sujet"),
+                        body.get("dateDebut"), body.get("dateFin"), userDetails.getUsername()
                 )
         );
     }
