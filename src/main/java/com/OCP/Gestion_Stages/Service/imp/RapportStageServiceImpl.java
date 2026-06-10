@@ -26,6 +26,8 @@ public class RapportStageServiceImpl implements RapportStageService {
     private final StagiaireRepository stagiaireRepository;
     private final UserRepository userRepository;
     private final EmailService emailService;
+    private final DocumentStagiaireRepository documentStagiaireRepository;
+    private final com.OCP.Gestion_Stages.Service.FileStorageService fileStorageService;
 
     @Override
     public RapportResponse upload(Long stageId, MultipartFile file, String username) throws IOException {
@@ -119,6 +121,80 @@ public class RapportStageServiceImpl implements RapportStageService {
                 .collect(Collectors.toList());
     }
 
+    @Override
+    public RapportResponse valider(Long stageId, String decision, String commentaire, String username) {
+        RapportStage rapport = rapportRepository.findByStageId(stageId)
+                .orElseThrow(() -> new ResourceNotFoundException("Rapport introuvable pour le stage : " + stageId));
+
+        boolean valide = "VALIDE".equalsIgnoreCase(decision) || "VALIDER".equalsIgnoreCase(decision);
+        rapport.setStatut(valide ? "VALIDE" : "REFUSE");
+        rapport.setCommentaireValidation(commentaire);
+        rapport.setValideAt(java.time.LocalDateTime.now());
+        RapportStage saved = rapportRepository.save(rapport);
+
+        // Archivage dans les documents du stagiaire — uniquement si validé
+        if (valide) archiverDansDocuments(saved);
+
+        // Notifier le stagiaire du résultat
+        try {
+            Stage stage = saved.getStage();
+            if (stage != null && stage.getStagiaire() != null && stage.getStagiaire().getEmail() != null) {
+                String corps = """
+                    <html><body style="font-family:Arial,sans-serif">
+                    <div style="max-width:600px;margin:auto;padding:20px;border:1px solid #e2e8f0;border-radius:8px">
+                    <div style="background:%s;padding:16px;border-radius:6px 6px 0 0;text-align:center">
+                      <h2 style="color:white;margin:0">OCP — %s</h2>
+                    </div>
+                    <div style="padding:20px">
+                      <p>Bonjour <strong>%s %s</strong>,</p>
+                      <p>Votre rapport de stage a été <strong>%s</strong> par votre encadrant.</p>
+                      %s
+                    </div></div></body></html>
+                    """.formatted(
+                        valide ? "#00843D" : "#DC2626",
+                        valide ? "Rapport validé" : "Rapport à corriger",
+                        stage.getStagiaire().getPrenom(), stage.getStagiaire().getNom(),
+                        valide ? "validé" : "refusé",
+                        commentaire != null && !commentaire.isBlank()
+                            ? "<p style='background:#f8fafc;border-radius:8px;padding:12px'><b>Commentaire :</b> " + commentaire + "</p>"
+                            : ""
+                );
+                emailService.envoyerEmail(stage.getStagiaire().getEmail(),
+                        valide ? "✅ Rapport de stage validé" : "❌ Rapport de stage à corriger", corps);
+            }
+        } catch (Exception e) {
+            log.warn("Email validation rapport non envoyé : {}", e.getMessage());
+        }
+
+        return toResponse(saved);
+    }
+
+    /** Archive le rapport validé parmi les documents du stagiaire (type RAPPORT, un seul). */
+    private void archiverDansDocuments(RapportStage rapport) {
+        try {
+            Stagiaire stagiaire = rapport.getStage() != null ? rapport.getStage().getStagiaire() : null;
+            if (stagiaire == null || rapport.getContenu() == null) return;
+            documentStagiaireRepository.findByStagiaireIdAndTypeDocument(stagiaire.getId(), "RAPPORT")
+                    .ifPresent(existing -> {
+                        if (existing.getCheminFichier() != null) fileStorageService.delete(existing.getCheminFichier());
+                        documentStagiaireRepository.delete(existing);
+                    });
+            String chemin = fileStorageService.store(rapport.getContenu(), rapport.getNomFichier());
+            DocumentStagiaire doc = DocumentStagiaire.builder()
+                    .stagiaire(stagiaire)
+                    .typeDocument("RAPPORT")
+                    .nomFichier(rapport.getNomFichier())
+                    .contentType(rapport.getTypeContenu())
+                    .taille(rapport.getTaille())
+                    .cheminFichier(chemin)
+                    .contenu(rapport.getContenu()) // colonne legacy NOT NULL
+                    .build();
+            documentStagiaireRepository.save(doc);
+        } catch (Exception e) {
+            log.warn("Archivage rapport dans documents échoué : {}", e.getMessage());
+        }
+    }
+
     private RapportResponse toResponse(RapportStage r) {
         RapportResponse res = new RapportResponse();
         res.setId(r.getId());
@@ -126,6 +202,9 @@ public class RapportStageServiceImpl implements RapportStageService {
         res.setTypeContenu(r.getTypeContenu());
         res.setTaille(r.getTaille());
         res.setUploadedAt(r.getUploadedAt());
+        res.setStatut(r.getStatut());
+        res.setCommentaireValidation(r.getCommentaireValidation());
+        res.setValideAt(r.getValideAt());
         if (r.getStage() != null) {
             res.setStageId(r.getStage().getId());
             res.setStageSujet(r.getStage().getSujet());

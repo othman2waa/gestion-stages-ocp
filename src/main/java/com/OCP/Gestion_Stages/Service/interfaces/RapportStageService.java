@@ -12,4 +12,5 @@ public interface RapportStageService {
     RapportResponse getMeta(Long stageId);
     void delete(Long stageId);
     List<RapportResponse> getMesRapports(String username);
+    RapportResponse valider(Long stageId, String decision, String commentaire, String username);
 }

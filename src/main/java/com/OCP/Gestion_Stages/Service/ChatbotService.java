@@ -8,6 +8,7 @@ import com.OCP.Gestion_Stages.Repository.StagiaireRepository;
 import com.OCP.Gestion_Stages.domain.enums.StageStatus;
 import com.OCP.Gestion_Stages.domain.model.Candidature;
 import com.OCP.Gestion_Stages.domain.model.Encadrant;
+import com.OCP.Gestion_Stages.domain.model.Stagiaire;
 import com.OCP.Gestion_Stages.exeptions.ResourceNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -49,7 +50,9 @@ public class ChatbotService {
             result.put("message", "Posez-moi une question sur les candidatures, les stages, la conformité… ou demandez un résumé de la situation.");
             return result;
         }
-        result.put("message", ollamaService.repondreAvecContexte(formatContexte(stats), question));
+        // Contexte = indicateurs chiffrés + liste nominative des fiches OCP non remplies
+        String contexte = formatContexte(stats) + formatFiches();
+        result.put("message", ollamaService.repondreAvecContexte(contexte, question));
         return result;
     }
 
@@ -72,12 +75,44 @@ public class ChatbotService {
         s.put("stagiaires_total", stagiaireRepository.count());
         s.put("encadrants_total", encadrantRepository.count());
         s.put("departements_total", departementRepository.count());
+        // Suivi de la Fiche de renseignement OCP (parmi les stagiaires disposant d'un compte)
+        List<Stagiaire> avecCompte = stagiairesAvecCompte();
+        long ficheOk = avecCompte.stream()
+                .filter(st -> Boolean.TRUE.equals(st.getFicheRenseignementCompletee())).count();
+        s.put("stagiaires_avec_compte", (long) avecCompte.size());
+        s.put("fiches_ocp_completees", ficheOk);
+        s.put("fiches_ocp_non_remplies", (long) avecCompte.size() - ficheOk);
         return s;
     }
 
     private String formatContexte(Map<String, Object> stats) {
         StringBuilder sb = new StringBuilder();
         stats.forEach((k, v) -> sb.append("- ").append(k.replace('_', ' ')).append(" : ").append(v).append("\n"));
+        return sb.toString();
+    }
+
+    /** Stagiaires possédant un compte (donc censés remplir la fiche). */
+    private List<Stagiaire> stagiairesAvecCompte() {
+        return stagiaireRepository.findAll().stream()
+                .filter(st -> st.getUser() != null).toList();
+    }
+
+    /** Liste nominative des fiches OCP non remplies, injectée dans le contexte de l'assistant. */
+    private String formatFiches() {
+        List<String> sansFiche = stagiairesAvecCompte().stream()
+                .filter(st -> !Boolean.TRUE.equals(st.getFicheRenseignementCompletee()))
+                .map(st -> (safe(st.getPrenom()) + " " + safe(st.getNom())).trim())
+                .filter(n -> !n.isBlank())
+                .sorted()
+                .toList();
+        StringBuilder sb = new StringBuilder();
+        if (sansFiche.isEmpty()) {
+            sb.append("\nFiche de renseignement OCP : tous les stagiaires avec compte l'ont remplie.\n");
+        } else {
+            sb.append("\nStagiaires (avec compte) n'ayant PAS rempli la Fiche de renseignement OCP (")
+              .append(sansFiche.size()).append(") :\n");
+            for (String n : sansFiche) sb.append("  - ").append(n).append("\n");
+        }
         return sb.toString();
     }
 

@@ -138,6 +138,16 @@ public class StagiaireServiceImpl implements StagiaireService {
             response.setDepartementId(s.getDepartement().getId());
             response.setDepartementNom(s.getDepartement().getNom());
         }
+        // Fiche de renseignement OCP (remplie par le stagiaire) — exposée au RH
+        response.setDiplome(s.getDiplome());
+        response.setAdressePersonnelle(s.getAdressePersonnelle());
+        response.setVilleEtablissement(s.getVilleEtablissement());
+        response.setAdresseLogementStage(s.getAdresseLogementStage());
+        response.setContactUrgenceNom(s.getContactUrgenceNom());
+        response.setContactUrgenceTel(s.getContactUrgenceTel());
+        response.setServiceAccueil(s.getServiceAccueil());
+        response.setObservation(s.getObservation());
+        response.setFicheRenseignementCompletee(s.getFicheRenseignementCompletee());
         // Statut du stage le plus pertinent : on privilégie un stage en cours,
         // sinon le plus récent. Permet de séparer actifs / terminés côté RH.
         List<Stage> stages = stageRepository.findByStagiaireId(s.getId());

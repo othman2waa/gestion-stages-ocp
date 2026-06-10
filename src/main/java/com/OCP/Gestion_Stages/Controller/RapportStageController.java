@@ -61,4 +61,15 @@ public class RapportStageController {
             @AuthenticationPrincipal UserDetails userDetails) {
         return ResponseEntity.ok(rapportService.getMesRapports(userDetails.getUsername()));
     }
+
+    /** Validation/refus du rapport par l'encadrant (ou RH). Body: {decision: VALIDE|REFUSE, commentaire?} */
+    @PatchMapping("/stage/{stageId}/validation")
+    @PreAuthorize("hasAnyRole('ENCADRANT','ADMIN_RH','RESPONSABLE_RH')")
+    public ResponseEntity<RapportResponse> valider(
+            @PathVariable Long stageId,
+            @RequestBody java.util.Map<String, String> body,
+            @AuthenticationPrincipal UserDetails userDetails) {
+        return ResponseEntity.ok(rapportService.valider(
+                stageId, body.get("decision"), body.get("commentaire"), userDetails.getUsername()));
+    }
 }

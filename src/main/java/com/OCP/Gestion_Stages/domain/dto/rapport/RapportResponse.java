@@ -13,4 +13,8 @@ public class RapportResponse {
     private String typeContenu;
     private Long taille;
     private LocalDateTime uploadedAt;
+    // Validation encadrant
+    private String statut;                 // EN_ATTENTE, VALIDE, REFUSE
+    private String commentaireValidation;
+    private LocalDateTime valideAt;
 }

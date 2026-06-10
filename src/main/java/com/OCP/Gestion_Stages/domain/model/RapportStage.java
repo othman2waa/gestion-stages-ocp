@@ -31,6 +31,18 @@ public class RapportStage {
     @Column(name = "uploaded_at", updatable = false)
     private LocalDateTime uploadedAt;
 
+    // ── Validation par l'encadrant
+    // (nullable en base pour permettre l'ajout de colonne sur table existante ;
+    //  les nouvelles lignes prennent 'EN_ATTENTE' via le défaut Java)
+    @Column(name = "statut", length = 20)
+    private String statut = "EN_ATTENTE"; // EN_ATTENTE, VALIDE, REFUSE
+
+    @Column(name = "commentaire_validation", columnDefinition = "TEXT")
+    private String commentaireValidation;
+
+    @Column(name = "valide_at")
+    private LocalDateTime valideAt;
+
     @PrePersist
     protected void onCreate() { this.uploadedAt = LocalDateTime.now(); }
 }
