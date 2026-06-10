@@ -15,7 +15,7 @@ public interface StagiaireService {
     MonDashboardResponse getMonDashboard(String username);
     void delete(Long id);
     List<StagiaireResponse> search(String keyword);
-    Page<StagiaireResponse> rechercher(String keyword, String niveau, String filiere, Long departementId, Pageable pageable);
+    Page<StagiaireResponse> rechercher(String keyword, String niveau, String filiere, Long departementId, String etatStage, Pageable pageable);
 
     void activerCompte(Long stagiaireId);
     void desactiverCompte(Long stagiaireId);

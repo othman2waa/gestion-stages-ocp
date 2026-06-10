@@ -38,11 +38,22 @@ public interface StagiaireRepository extends JpaRepository<Stagiaire, Long> {
         AND (CAST(:niveau AS VARCHAR) IS NULL OR s.niveau = CAST(:niveau AS VARCHAR))
         AND (CAST(:filiere AS VARCHAR) IS NULL OR s.filiere = CAST(:filiere AS VARCHAR))
         AND (CAST(:departementId AS BIGINT) IS NULL OR d.id = CAST(:departementId AS BIGINT))
+        AND (CAST(:etatStage AS VARCHAR) IS NULL
+            OR (CAST(:etatStage AS VARCHAR) = 'ACTIF' AND EXISTS (
+                SELECT 1 FROM stage st WHERE st.stagiaire_id = s.id
+                AND st.statut IN ('EN_COURS','CONVENTION_SIGNEE','EN_ATTENTE_EVALUATION')))
+            OR (CAST(:etatStage AS VARCHAR) = 'TERMINE' AND EXISTS (
+                SELECT 1 FROM stage st WHERE st.stagiaire_id = s.id
+                AND st.statut = 'TERMINE')
+                AND NOT EXISTS (
+                SELECT 1 FROM stage st2 WHERE st2.stagiaire_id = s.id
+                AND st2.statut IN ('EN_COURS','CONVENTION_SIGNEE','EN_ATTENTE_EVALUATION'))))
         """, nativeQuery = true)
     Page<Stagiaire> rechercher(
             @Param("keyword") String keyword,
             @Param("niveau") String niveau,
             @Param("filiere") String filiere,
             @Param("departementId") Long departementId,
+            @Param("etatStage") String etatStage,
             Pageable pageable);
 }

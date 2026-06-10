@@ -86,9 +86,9 @@ public class StagiaireServiceImpl implements StagiaireService {
 
     @Override
     public org.springframework.data.domain.Page<StagiaireResponse> rechercher(
-            String keyword, String niveau, String filiere, Long departementId,
+            String keyword, String niveau, String filiere, Long departementId, String etatStage,
             org.springframework.data.domain.Pageable pageable) {
-        return stagiaireRepository.rechercher(keyword, niveau, filiere, departementId, pageable)
+        return stagiaireRepository.rechercher(keyword, niveau, filiere, departementId, etatStage, pageable)
                 .map(this::toResponse);
     }
 
@@ -138,7 +138,31 @@ public class StagiaireServiceImpl implements StagiaireService {
             response.setDepartementId(s.getDepartement().getId());
             response.setDepartementNom(s.getDepartement().getNom());
         }
+        // Statut du stage le plus pertinent : on privilégie un stage en cours,
+        // sinon le plus récent. Permet de séparer actifs / terminés côté RH.
+        List<Stage> stages = stageRepository.findByStagiaireId(s.getId());
+        if (stages != null && !stages.isEmpty()) {
+            Stage pertinent = stages.stream()
+                    .max(java.util.Comparator
+                            .comparingInt((Stage st) -> etatRang(st.getStatut()))
+                            .thenComparing(Stage::getId))
+                    .orElse(null);
+            if (pertinent != null && pertinent.getStatut() != null) {
+                response.setStageStatut(pertinent.getStatut().name());
+            }
+        }
         return response;
+    }
+
+    // Rang de priorité pour choisir le stage représentatif d'un stagiaire :
+    // un stage en cours prime sur un stage terminé, qui prime sur le reste.
+    private int etatRang(StageStatus statut) {
+        if (statut == null) return 0;
+        return switch (statut) {
+            case EN_COURS, CONVENTION_SIGNEE, EN_ATTENTE_EVALUATION -> 3;
+            case TERMINE -> 2;
+            default -> 1;
+        };
     }
 
     @Override

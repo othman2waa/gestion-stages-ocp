@@ -46,11 +46,16 @@ public class OllamaService {
      * (option native d'Ollama) → parsing fiable. Température basse = scores déterministes.
      */
     private String callOllama(String prompt, boolean jsonFormat) throws Exception {
+        return callOllama(prompt, jsonFormat, 800);
+    }
+
+    /** Variante avec contrôle de la longueur de sortie (num_predict) pour accélérer les appels courts. */
+    private String callOllama(String prompt, boolean jsonFormat, int numPredict) throws Exception {
         Map<String, Object> body = new HashMap<>();
         body.put("model", model);
         body.put("prompt", prompt);
         body.put("stream", false);
-        body.put("options", Map.of("temperature", temperature, "num_predict", 800));
+        body.put("options", Map.of("temperature", temperature, "num_predict", numPredict));
         if (jsonFormat) {
             body.put("format", "json");
         }
@@ -394,6 +399,59 @@ public class OllamaService {
         } catch (Exception e) {
             log.warn("Erreur analyse performance IA: {}", e.getMessage());
             return Map.of("scoreGlobal", 50, "synthese", "Service IA indisponible");
+        }
+    }
+
+    /**
+     * Chatbot encadrant : évalue l'adéquation entre un BESOIN exprimé en langage naturel
+     * et un CV. Renvoie {score 0-100, justification}.
+     */
+    public Map<String, Object> matchBesoin(String texteCV, String besoin) {
+        String prompt = """
+            Tu es un assistant RH chez OCP. Évalue l'adéquation entre le BESOIN d'un encadrant
+            et le CV d'un candidat. Sois strict et concis.
+
+            BESOIN DE L'ENCADRANT :
+            %s
+
+            CV DU CANDIDAT :
+            %s
+
+            Réponds UNIQUEMENT avec un JSON :
+            {"score": <0-100>, "justification": "une phrase TRÈS COURTE (15 mots max)"}
+            """.formatted(besoin, texteCV);
+        try {
+            JsonNode r = parseJson(callOllama(prompt, true, 160));
+            Map<String, Object> m = new HashMap<>();
+            m.put("score", r != null ? clampScore(safeInt(r, "score")) : 0);
+            m.put("justification", r != null ? safeText(r, "justification") : "Analyse indisponible");
+            return m;
+        } catch (Exception e) {
+            log.warn("Erreur matchBesoin: {}", e.getMessage());
+            return Map.of("score", 0, "justification", "Service IA indisponible");
+        }
+    }
+
+    /**
+     * Assistant RH : répond en langage naturel à partir d'un contexte de données (RAG simple).
+     */
+    public String repondreAvecContexte(String contexte, String question) {
+        String prompt = """
+            Tu es l'assistant RH de la plateforme de gestion des stages d'OCP Group.
+            Voici les DONNÉES ACTUELLES de la plateforme :
+            %s
+
+            En te basant UNIQUEMENT sur ces données, réponds de façon concise, claire et professionnelle.
+            Si une information demandée n'est pas dans les données, dis-le simplement.
+
+            Question de l'utilisateur : %s
+            """.formatted(contexte, question);
+        try {
+            String r = callOllama(prompt, false, 400);
+            return (r == null || r.isBlank()) ? "Je n'ai pas pu générer de réponse." : r.trim();
+        } catch (Exception e) {
+            log.warn("Erreur assistant RH: {}", e.getMessage());
+            return "Le service IA est indisponible pour le moment.";
         }
     }
 

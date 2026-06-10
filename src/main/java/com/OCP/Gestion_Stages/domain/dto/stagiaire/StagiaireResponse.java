@@ -21,4 +21,7 @@ public class StagiaireResponse {
     private Long userId;
     private Long departementId;
     private String departementNom;
+    // Statut du stage le plus récent (null si aucun stage) : sert à distinguer
+    // les stagiaires actifs (en cours) des stagiaires ayant terminé leur stage.
+    private String stageStatut;
 }

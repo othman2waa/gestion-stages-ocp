@@ -79,13 +79,14 @@ public class StagiaireController {
             @RequestParam(required = false) String niveau,
             @RequestParam(required = false) String filiere,
             @RequestParam(required = false) Long departementId,
+            @RequestParam(required = false) String etatStage,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "12") int size,
             @RequestParam(defaultValue = "nom") String sortBy,
             @RequestParam(defaultValue = "asc") String sortDir) {
         Pageable pageable = PageRequest.of(page, size,
                 sortDir.equals("asc") ? Sort.by(sortBy).ascending() : Sort.by(sortBy).descending());
-        return ResponseEntity.ok(stagiaireService.rechercher(keyword, niveau, filiere, departementId, pageable));
+        return ResponseEntity.ok(stagiaireService.rechercher(keyword, niveau, filiere, departementId, etatStage, pageable));
     }
     @GetMapping("/mon-dashboard")
     @PreAuthorize("hasRole('STAGIAIRE')")
