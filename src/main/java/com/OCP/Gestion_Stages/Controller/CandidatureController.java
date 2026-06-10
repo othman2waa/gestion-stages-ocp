@@ -104,6 +104,51 @@ public class CandidatureController {
                 .body(candidatureService.getCv(id));
     }
 
+    /** Export iCalendar (.ics) de l'entretien planifié d'une candidature. */
+    @GetMapping("/{id}/meeting.ics")
+    @PreAuthorize("hasAnyRole('ADMIN_RH','RESPONSABLE_RH','ENCADRANT')")
+    public ResponseEntity<String> meetingIcs(@PathVariable Long id) {
+        var c = candidatureRepository.findById(id)
+                .orElseThrow(() -> new com.OCP.Gestion_Stages.exeptions.ResourceNotFoundException("Candidature introuvable"));
+        if (c.getDateMeeting() == null)
+            return ResponseEntity.badRequest().body("Aucun entretien planifié pour cette candidature.");
+
+        var fmt = java.time.format.DateTimeFormatter.ofPattern("yyyyMMdd'T'HHmmss");
+        String debut = c.getDateMeeting().format(fmt);
+        String fin = c.getDateMeeting().plusHours(1).format(fmt);
+        String stamp = java.time.LocalDateTime.now().format(fmt);
+        String candidat = (safeStr(c.getPrenom()) + " " + safeStr(c.getNom())).trim();
+        String desc = "Entretien de stage OCP. Candidat: " + candidat
+                + (c.getEmail() != null ? " (" + c.getEmail() + ")" : "")
+                + (c.getSujetSouhaite() != null ? ". Sujet: " + c.getSujetSouhaite() : "")
+                + (c.getDepartementSouhaite() != null ? ". Departement: " + c.getDepartementSouhaite() : "");
+
+        String ics = String.join("\r\n",
+                "BEGIN:VCALENDAR",
+                "VERSION:2.0",
+                "PRODID:-//OCP//Gestion des Stages//FR",
+                "CALSCALE:GREGORIAN",
+                "METHOD:PUBLISH",
+                "BEGIN:VEVENT",
+                "UID:entretien-" + c.getId() + "@ocp-stages",
+                "DTSTAMP:" + stamp,
+                "DTSTART:" + debut,
+                "DTEND:" + fin,
+                "SUMMARY:Entretien stage — " + candidat,
+                "DESCRIPTION:" + desc.replace("\n", " "),
+                "LOCATION:OCP — Site de Benguérir",
+                "STATUS:CONFIRMED",
+                "END:VEVENT",
+                "END:VCALENDAR") + "\r\n";
+
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"entretien-" + c.getId() + ".ics\"")
+                .contentType(MediaType.parseMediaType("text/calendar; charset=utf-8"))
+                .body(ics);
+    }
+
+    private String safeStr(String s) { return s != null ? s : ""; }
+
     // ════════════════════════════════════════
     // ENCADRANT — Délégué au service
     // ════════════════════════════════════════

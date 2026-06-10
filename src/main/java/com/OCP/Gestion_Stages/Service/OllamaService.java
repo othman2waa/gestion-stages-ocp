@@ -455,6 +455,35 @@ public class OllamaService {
         }
     }
 
+    /**
+     * Résume un rapport de stage à l'intention de l'encadrant (synthèse structurée).
+     */
+    public String resumerRapport(String texteRapport) {
+        if (texteRapport == null || texteRapport.isBlank())
+            return "Le rapport ne contient pas de texte exploitable (PDF scanné ou vide).";
+        String extrait = texteRapport.length() > 6000 ? texteRapport.substring(0, 6000) : texteRapport;
+        String prompt = """
+            Tu es un encadrant de stage chez OCP. Voici le contenu d'un rapport de stage :
+            ---
+            %s
+            ---
+            Rédige une SYNTHÈSE claire et professionnelle en français, sous forme de points :
+            - Objectif / problématique du stage
+            - Travail réalisé et méthodologie
+            - Technologies / outils utilisés
+            - Principaux résultats
+            - Points forts et axes d'amélioration
+            Sois concis (10 lignes maximum). Ne réponds qu'avec la synthèse.
+            """.formatted(extrait);
+        try {
+            String r = callOllama(prompt, false, 450);
+            return (r == null || r.isBlank()) ? "Je n'ai pas pu générer de résumé." : r.trim();
+        } catch (Exception e) {
+            log.warn("Erreur résumé rapport: {}", e.getMessage());
+            return "Le service IA est indisponible pour le moment.";
+        }
+    }
+
     // ════════════════════════════════════════════════════════════
     //  Matching sémantique par EMBEDDINGS (vecteurs) + scoring explicable
     // ════════════════════════════════════════════════════════════

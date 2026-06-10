@@ -1,0 +1,22 @@
+%% Séquence : authentification JWT — Gestion des Stages OCP
+sequenceDiagram
+    actor U as Utilisateur
+    participant NG as Angular (auth.service)
+    participant AC as AuthController
+    participant AM as AuthenticationManager
+    participant JS as JwtService
+    participant DB as PostgreSQL
+
+    U->>NG: saisit identifiants + Login
+    NG->>AC: POST /api/auth/login {username,password}
+    AC->>AM: authenticate(username,password)
+    AM->>DB: charge l'utilisateur (UserDetails)
+    DB-->>AM: User (hash, rôle)
+    AM-->>AC: Authentication OK
+    AC->>JS: generateToken(userDetails)
+    JS-->>AC: JWT signé (HS256, exp)
+    AC-->>NG: 200 {token, role}
+    NG->>NG: stocke currentUser dans localStorage
+    Note over NG: requêtes suivantes
+    NG->>AC: GET /api/... (auth.interceptor ajoute Bearer JWT)
+    Note over AC: JwtAuthenticationFilter valide le token<br/>et peuple le SecurityContext

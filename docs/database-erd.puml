@@ -1,0 +1,191 @@
+@startuml database-erd
+' Schéma Entité-Association — Plateforme de Gestion des Stages OCP
+' Rendu : http://www.plantuml.com/plantuml  (ou extension IDE). Nécessite Graphviz en local.
+hide circle
+skinparam linetype ortho
+skinparam roundcorner 6
+skinparam classBackgroundColor #F6F8F6
+skinparam classBorderColor #0A7C3E
+
+entity users {
+  * id : bigint <<PK>>
+  --
+  username : varchar
+  password : varchar
+  role : UserRole
+  actif : boolean
+}
+entity stagiaire {
+  * id : bigint <<PK>>
+  --
+  user_id : bigint <<FK>>
+  etablissement_id : bigint <<FK>>
+  departement_id : bigint <<FK>>
+  nom / prenom / cin
+  filiere / niveau / diplome
+  fiche_renseignement_completee : boolean
+}
+entity encadrant {
+  * id : bigint <<PK>>
+  --
+  user_id : bigint <<FK>>
+  departement_id : bigint <<FK>>
+  nom / prenom / email
+}
+entity departement {
+  * id : bigint <<PK>>
+  --
+  code / nom / responsable
+}
+entity etablissement {
+  * id : bigint <<PK>>
+  --
+  nom
+}
+entity departement_specialite {
+  * id : bigint <<PK>>
+  --
+  departement_id : bigint <<FK>>
+  nom
+}
+entity stage {
+  * id : bigint <<PK>>
+  --
+  stagiaire_id : bigint <<FK>>
+  encadrant_id : bigint <<FK>>
+  departement_id : bigint <<FK>>
+  sujet
+  type_stage : TypeStage
+  statut : StageStatus
+  date_debut / date_fin
+}
+entity candidature {
+  * id : bigint <<PK>>
+  --
+  departement_id : bigint <<FK>>
+  annonce_id : bigint <<FK>>
+  nom / prenom / email
+  statut / score_matching
+  cv_chemin
+}
+entity document_candidature {
+  * id : bigint <<PK>>
+  --
+  candidature_id : bigint <<FK>>
+  type_document / statut_ia
+  chemin_fichier
+}
+entity annonce_stage {
+  * id : bigint <<PK>>
+  --
+  titre / type_stage
+  nombre_postes / actif
+}
+entity sujet_stage {
+  * id : bigint <<PK>>
+  --
+  encadrant_id : bigint <<FK>>
+  departement_id : bigint <<FK>>
+  stage_id : bigint <<FK>>
+  titre / statut
+}
+entity convention {
+  * id : bigint <<PK>>
+  --
+  stage_id : bigint <<FK>>
+  statut : ConventionStatus
+}
+entity evaluation {
+  * id : bigint <<PK>>
+  --
+  stage_id : bigint <<FK>>
+  type : TypeEvaluation
+  note
+}
+entity rapport_stage {
+  * id : bigint <<PK>>
+  --
+  stage_id : bigint <<FK>>
+  nom_fichier
+  statut (EN_ATTENTE/VALIDE/REFUSE)
+  commentaire_validation
+  valide_at
+}
+entity fiche_appreciation_stage {
+  * id : bigint <<PK>>
+  stage_id : bigint <<FK>>
+}
+entity fiche_appreciation_stagiaire {
+  * id : bigint <<PK>>
+  stage_id : bigint <<FK>>
+}
+entity suivis_hebdomadaires {
+  * id : bigint <<PK>>
+  stage_id : bigint <<FK>>
+}
+entity pointages {
+  * id : bigint <<PK>>
+  stage_id : bigint <<FK>>
+}
+entity attestation_stage {
+  * id : bigint <<PK>>
+  stage_id : bigint <<FK>>
+  statut / numero_attestation
+}
+entity document_stagiaire {
+  * id : bigint <<PK>>
+  stagiaire_id : bigint <<FK>>
+  type_document (CV/CIN/RAPPORT/...)
+  chemin_fichier
+}
+entity onboarding_checklist {
+  * id : bigint <<PK>>
+  stagiaire_id : bigint <<FK>>
+  etape / completed
+}
+entity stage_historique {
+  * id : bigint <<PK>>
+  stage_id : bigint <<FK>>
+  action
+}
+entity archive_stage {
+  * id : bigint <<PK>>
+  stage_id : bigint <<UK>>
+  mention / note_finale / annee_stage
+}
+entity audit_log {
+  * id : bigint <<PK>>
+  action / utilisateur / created_at
+}
+entity notification {
+  * id : bigint <<PK>>
+  destinataire / message / lu
+}
+
+users ||--o| stagiaire
+users ||--o| encadrant
+etablissement ||--o{ stagiaire
+departement ||--o{ encadrant
+departement ||--o{ stage
+departement ||--o{ departement_specialite
+departement ||--o{ sujet_stage
+departement ||--o{ candidature
+stagiaire ||--o{ stage
+stagiaire ||--o{ document_stagiaire
+stagiaire ||--o{ onboarding_checklist
+encadrant ||--o{ stage
+encadrant ||--o{ sujet_stage
+stage ||--o| convention
+stage ||--o{ evaluation
+stage ||--o| rapport_stage
+stage ||--o{ suivis_hebdomadaires
+stage ||--o{ pointages
+stage ||--o| attestation_stage
+stage ||--o| fiche_appreciation_stage
+stage ||--o| fiche_appreciation_stagiaire
+stage ||--o{ stage_historique
+stage ||--o| sujet_stage
+stage ||--o| archive_stage
+candidature ||--o{ document_candidature
+annonce_stage ||--o{ candidature
+@enduml

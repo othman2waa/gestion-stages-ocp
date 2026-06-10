@@ -28,6 +28,7 @@ public class RapportStageServiceImpl implements RapportStageService {
     private final EmailService emailService;
     private final DocumentStagiaireRepository documentStagiaireRepository;
     private final com.OCP.Gestion_Stages.Service.FileStorageService fileStorageService;
+    private final com.OCP.Gestion_Stages.Service.OllamaService ollamaService;
 
     @Override
     public RapportResponse upload(Long stageId, MultipartFile file, String username) throws IOException {
@@ -167,6 +168,25 @@ public class RapportStageServiceImpl implements RapportStageService {
         }
 
         return toResponse(saved);
+    }
+
+    @Override
+    public String resumer(Long stageId) {
+        RapportStage rapport = rapportRepository.findByStageId(stageId)
+                .orElseThrow(() -> new ResourceNotFoundException("Rapport introuvable pour le stage : " + stageId));
+        String texte = extraireTextePdf(rapport.getContenu());
+        return ollamaService.resumerRapport(texte);
+    }
+
+    /** Extrait le texte d'un PDF (rapport) via PDFBox ; renvoie "" si illisible. */
+    private String extraireTextePdf(byte[] bytes) {
+        if (bytes == null || bytes.length == 0) return "";
+        try (org.apache.pdfbox.pdmodel.PDDocument pdf = org.apache.pdfbox.Loader.loadPDF(bytes)) {
+            return new org.apache.pdfbox.text.PDFTextStripper().getText(pdf);
+        } catch (Exception e) {
+            log.warn("Extraction texte rapport échouée : {}", e.getMessage());
+            return "";
+        }
     }
 
     /** Archive le rapport validé parmi les documents du stagiaire (type RAPPORT, un seul). */

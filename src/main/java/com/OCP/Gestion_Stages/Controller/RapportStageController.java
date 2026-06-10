@@ -62,6 +62,13 @@ public class RapportStageController {
         return ResponseEntity.ok(rapportService.getMesRapports(userDetails.getUsername()));
     }
 
+    /** Résumé IA du rapport (à l'intention de l'encadrant/RH). */
+    @GetMapping("/stage/{stageId}/resume")
+    @PreAuthorize("hasAnyRole('ENCADRANT','ADMIN_RH','RESPONSABLE_RH')")
+    public ResponseEntity<java.util.Map<String, String>> resumer(@PathVariable Long stageId) {
+        return ResponseEntity.ok(java.util.Map.of("resume", rapportService.resumer(stageId)));
+    }
+
     /** Validation/refus du rapport par l'encadrant (ou RH). Body: {decision: VALIDE|REFUSE, commentaire?} */
     @PatchMapping("/stage/{stageId}/validation")
     @PreAuthorize("hasAnyRole('ENCADRANT','ADMIN_RH','RESPONSABLE_RH')")
