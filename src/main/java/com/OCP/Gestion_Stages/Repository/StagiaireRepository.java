@@ -41,13 +41,13 @@ public interface StagiaireRepository extends JpaRepository<Stagiaire, Long> {
         AND (CAST(:etatStage AS VARCHAR) IS NULL
             OR (CAST(:etatStage AS VARCHAR) = 'ACTIF' AND EXISTS (
                 SELECT 1 FROM stage st WHERE st.stagiaire_id = s.id
-                AND st.statut IN ('EN_COURS','CONVENTION_SIGNEE','EN_ATTENTE_EVALUATION')))
+                AND st.statut IN ('EN_COURS','CONVENTION_SIGNEE')))
             OR (CAST(:etatStage AS VARCHAR) = 'TERMINE' AND EXISTS (
                 SELECT 1 FROM stage st WHERE st.stagiaire_id = s.id
-                AND st.statut = 'TERMINE')
+                AND st.statut IN ('EN_ATTENTE_EVALUATION','TERMINE'))
                 AND NOT EXISTS (
                 SELECT 1 FROM stage st2 WHERE st2.stagiaire_id = s.id
-                AND st2.statut IN ('EN_COURS','CONVENTION_SIGNEE','EN_ATTENTE_EVALUATION'))))
+                AND st2.statut IN ('EN_COURS','CONVENTION_SIGNEE'))))
         """, nativeQuery = true)
     Page<Stagiaire> rechercher(
             @Param("keyword") String keyword,

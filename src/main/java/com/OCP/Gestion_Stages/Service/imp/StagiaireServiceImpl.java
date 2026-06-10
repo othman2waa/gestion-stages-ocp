@@ -159,8 +159,8 @@ public class StagiaireServiceImpl implements StagiaireService {
     private int etatRang(StageStatus statut) {
         if (statut == null) return 0;
         return switch (statut) {
-            case EN_COURS, CONVENTION_SIGNEE, EN_ATTENTE_EVALUATION -> 3;
-            case TERMINE -> 2;
+            case EN_COURS, CONVENTION_SIGNEE -> 3;
+            case EN_ATTENTE_EVALUATION, TERMINE -> 2;
             default -> 1;
         };
     }
