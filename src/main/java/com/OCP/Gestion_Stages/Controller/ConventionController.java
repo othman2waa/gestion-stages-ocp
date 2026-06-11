@@ -179,7 +179,7 @@ public class ConventionController {
         byte[] pdf = pdfService.genererPdf(dto);
         return ResponseEntity.ok()
                 .header(HttpHeaders.CONTENT_DISPOSITION,
-                        "attachment; filename=\"convention-" + c.getNumero() + ".pdf\"")
+                        "attachment; filename=\"convocation-" + c.getNumero() + ".pdf\"")
                 .contentType(MediaType.APPLICATION_PDF)
                 .body(pdf);
     }
