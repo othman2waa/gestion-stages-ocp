@@ -97,6 +97,18 @@ public class ConventionServiceImpl implements ConventionService, ConventionServi
         stageRepository.save(stage);
     }
 
+    @Override
+    public ConventionResponse affecterEntiteAccueil(Long id, String entiteAccueil) {
+        Convention c = conventionRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Convocation introuvable : " + id));
+        if (c.getStage() == null)
+            throw new ResourceNotFoundException("Aucun stage lié à cette convocation");
+        c.getStage().setEntiteAccueil(entiteAccueil != null && !entiteAccueil.isBlank()
+                ? entiteAccueil.trim() : null);
+        stageRepository.save(c.getStage());
+        return toResponse(c);
+    }
+
     private ConventionResponse toResponse(Convention c) {
         ConventionResponse response = new ConventionResponse();
         response.setId(c.getId());
@@ -111,6 +123,7 @@ public class ConventionServiceImpl implements ConventionService, ConventionServi
             response.setStageDebut(s.getDateDebut());
             response.setStageFin(s.getDateFin());
             response.setTypeStage(s.getTypeStage() != null ? s.getTypeStage().name() : "");
+            response.setEntiteAccueil(s.getEntiteAccueil());
             if (s.getStagiaire() != null) {
                 response.setStagiaireNom(s.getStagiaire().getPrenom() + " " + s.getStagiaire().getNom());
                 response.setStagiaireEmail(s.getStagiaire().getEmail());

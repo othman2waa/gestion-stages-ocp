@@ -166,8 +166,11 @@ public class ConventionPdfService {
             // Direction d'accueil
             ajouterLigneInfo(infoTable, "Direction d'accueil :", safe(conv.getDepartementNom()));
 
-            // Entité d'accueil
-            ajouterLigneInfo(infoTable, "Entité d'accueil :", safe(conv.getStageSujet()));
+            // Sujet du stage
+            ajouterLigneInfo(infoTable, "Sujet du stage :", safe(conv.getStageSujet()));
+
+            // Entité / service d'accueil
+            ajouterLigneInfo(infoTable, "Entité d'accueil :", safe(conv.getEntiteAccueil()));
 
             // Parrain de stage
             ajouterLigneInfo(infoTable, "Parrain de stage :", safe(conv.getEncadrantNom()));

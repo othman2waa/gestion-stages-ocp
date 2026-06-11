@@ -11,4 +11,5 @@ public interface ConventionService {
     ConventionResponse update(Long id, ConventionRequest request);
     void delete(Long id);
     ConventionResponse findByStage(Long stageId);
+    ConventionResponse affecterEntiteAccueil(Long id, String entiteAccueil);
 }

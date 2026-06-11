@@ -180,7 +180,8 @@ public class CandidatureController {
         return ResponseEntity.ok(
                 candidatureServiceExtended.decisionEncadrant(
                         id, body.get("decision"), body.get("note"), body.get("sujet"),
-                        body.get("dateDebut"), body.get("dateFin"), userDetails.getUsername()
+                        body.get("dateDebut"), body.get("dateFin"), body.get("entiteAccueil"),
+                        userDetails.getUsername()
                 )
         );
     }

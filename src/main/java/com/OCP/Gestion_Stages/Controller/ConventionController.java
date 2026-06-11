@@ -159,6 +159,7 @@ public class ConventionController {
             dto.setTypeStage(s.getTypeStage() != null ? s.getTypeStage().name() : "");
             dto.setStageDebut(s.getDateDebut());
             dto.setStageFin(s.getDateFin());
+            dto.setEntiteAccueil(s.getEntiteAccueil());
             if (s.getStagiaire() != null) {
                 dto.setStagiaireNom(s.getStagiaire().getPrenom() + " " + s.getStagiaire().getNom());
                 dto.setStagiaireEmail(s.getStagiaire().getEmail());
@@ -182,6 +183,14 @@ public class ConventionController {
                         "attachment; filename=\"convocation-" + c.getNumero() + ".pdf\"")
                 .contentType(MediaType.APPLICATION_PDF)
                 .body(pdf);
+    }
+
+    /** Affecte l'entité / service d'accueil sur le stage de la convocation (RH). */
+    @PatchMapping("/{id}/entite-accueil")
+    @PreAuthorize("hasAnyRole('ADMIN_RH','RESPONSABLE_RH')")
+    public ResponseEntity<ConventionResponse> affecterEntite(
+            @PathVariable Long id, @RequestBody java.util.Map<String, String> body) {
+        return ResponseEntity.ok(conventionService.affecterEntiteAccueil(id, body.get("entiteAccueil")));
     }
 
     // ════════════════════════════════════════

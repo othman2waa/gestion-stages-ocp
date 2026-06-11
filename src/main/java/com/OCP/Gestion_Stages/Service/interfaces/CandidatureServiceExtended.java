@@ -6,7 +6,7 @@ import java.util.Map;
 
 public interface CandidatureServiceExtended {
     CandidatureDTO planifierMeeting(Long id, String dateMeeting);
-    CandidatureDTO decisionEncadrant(Long id, String decision, String note, String sujet, String dateDebut, String dateFin, String username) throws Exception;
+    CandidatureDTO decisionEncadrant(Long id, String decision, String note, String sujet, String dateDebut, String dateFin, String entiteAccueil, String username) throws Exception;
     Map<String, Object> verifierIa(Long id);
     CandidatureDTO validerFinal(Long id, String decision, String commentaire, String username);
     List<CandidatureDTO> getCandidaturesDepartement(String username);

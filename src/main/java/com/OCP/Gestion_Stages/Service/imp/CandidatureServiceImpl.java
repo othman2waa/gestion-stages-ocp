@@ -501,7 +501,8 @@ public class CandidatureServiceImpl implements CandidatureService, CandidatureSe
 
     @Override
     public CandidatureDTO decisionEncadrant(Long id, String decision,
-                                            String note, String sujet, String dateDebut, String dateFin, String username) throws Exception {
+                                            String note, String sujet, String dateDebut, String dateFin,
+                                            String entiteAccueil, String username) throws Exception {
         Candidature c = candidatureRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Candidature introuvable"));
 
@@ -602,6 +603,8 @@ public class CandidatureServiceImpl implements CandidatureService, CandidatureSe
                 }
                 stage.setDateDebut(debut);
                 stage.setDateFin(fin);
+                if (entiteAccueil != null && !entiteAccueil.isBlank())
+                    stage.setEntiteAccueil(entiteAccueil.trim());
 
                 if (encadrant != null) stage.setEncadrant(encadrant);
                 if (c.getDepartement() != null) stage.setDepartement(c.getDepartement());

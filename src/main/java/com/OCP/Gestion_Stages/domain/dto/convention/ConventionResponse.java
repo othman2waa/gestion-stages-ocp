@@ -37,4 +37,5 @@ public class ConventionResponse {
     private java.time.LocalDate stageDebut;
     private java.time.LocalDate stageFin;
     private String typeStage;
+    private String entiteAccueil;
 }
