@@ -23,4 +23,5 @@ public class ConventionDTO {
     private String sujet;
     private String dateDebut;
     private String dateFin;
+    private String entiteAccueil;
 }

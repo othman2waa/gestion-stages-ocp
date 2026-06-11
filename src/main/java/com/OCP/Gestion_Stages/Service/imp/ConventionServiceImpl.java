@@ -270,6 +270,7 @@ public class ConventionServiceImpl implements ConventionService, ConventionServi
                 .sujet(s != null ? s.getSujet() : "")
                 .dateDebut(s != null && s.getDateDebut() != null ? s.getDateDebut().toString() : "")
                 .dateFin(s != null && s.getDateFin() != null ? s.getDateFin().toString() : "")
+                .entiteAccueil(s != null ? s.getEntiteAccueil() : null)
                 .build();
     }
 }
