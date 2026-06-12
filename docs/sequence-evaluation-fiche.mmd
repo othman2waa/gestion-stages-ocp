@@ -1,0 +1,28 @@
+%%{init: {'theme':'base','themeVariables':{'primaryColor':'#e8f5ee','primaryBorderColor':'#2e7d52','primaryTextColor':'#1a3c2e','lineColor':'#5a7d6c','actorBkg':'#e8f5ee','actorBorder':'#2e7d52','fontSize':'14px'}}}%%
+sequenceDiagram
+    actor E as Encadrant
+    actor S as Stagiaire
+    participant NG as Angular
+    participant EC as EvaluationController
+    participant ES as EvaluationService
+    participant FC as FicheAppreciationController
+    participant FS as FicheAppreciationService
+    participant NS as NotificationService
+    participant DB as PostgreSQL
+
+    Note over E: stage en fin de parcours
+    E->>NG: saisit l'evaluation (note, type)
+    NG->>EC: POST /api/evaluations
+    EC->>ES: create(request)
+    ES->>DB: evaluation + maj statut du stage
+    ES->>NS: notifie le stagiaire (nouvelle evaluation)
+    ES-->>NG: 200
+
+    E->>NG: remplit la fiche d'appreciation
+    NG->>FC: POST /api/fiches/stage
+    FC->>FS: createFicheStage(request)
+    FS->>DB: fiche_appreciation_stage
+    FS->>NS: notifie le stagiaire (fiche remplie)
+    FS-->>NG: 200
+
+    S->>NG: consulte ses evaluations et fiches

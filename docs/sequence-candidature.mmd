@@ -1,0 +1,33 @@
+%%{init: {'theme':'base','themeVariables':{'primaryColor':'#e8f5ee','primaryBorderColor':'#2e7d52','primaryTextColor':'#1a3c2e','lineColor':'#5a7d6c','actorBkg':'#e8f5ee','actorBorder':'#2e7d52','fontSize':'14px'}}}%%
+sequenceDiagram
+    actor C as Candidat
+    actor E as Encadrant
+    participant NG as Angular
+    participant CC as CandidatureController
+    participant CS as CandidatureService
+    participant NS as NotificationService
+    participant DB as PostgreSQL
+
+    C->>NG: formulaire de candidature (+ CV)
+    NG->>CC: POST /api/candidatures (multipart)
+    CC->>CS: soumettre(request, cv)
+    CS->>DB: enregistre candidature (statut=EN_ATTENTE)
+    CS->>NS: notifie RH + encadrants du departement
+    NS->>DB: notifications in-app
+    CS-->>NG: 201 CandidatureResponse
+
+    E->>NG: planifie un entretien
+    NG->>CC: PATCH /api/candidatures/{id}/meeting
+    CC->>CS: planifierMeeting(...)
+    CS->>DB: statut=MEETING_PLANIFIE
+    CS-->>NG: meeting.ics (export agenda)
+
+    E->>NG: Accepter / Refuser
+    NG->>CC: PATCH /api/candidatures/{id}/decision
+    alt Accepte
+        CS->>DB: statut=ACCEPTEE_ENCADRANT + cree Stagiaire
+        CS->>NS: notifie le candidat (accepte)
+    else Refuse
+        CS->>DB: suppression candidature (+CV) — libere la place
+    end
+    CS-->>NG: 200

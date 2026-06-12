@@ -1,0 +1,33 @@
+%%{init: {'theme':'base','themeVariables':{'primaryColor':'#e8f5ee','primaryBorderColor':'#2e7d52','primaryTextColor':'#1a3c2e','lineColor':'#5a7d6c','actorBkg':'#e8f5ee','actorBorder':'#2e7d52','fontSize':'14px'}}}%%
+sequenceDiagram
+    actor S as Stagiaire
+    actor E as Encadrant
+    participant NG as Angular
+    participant RC as RapportStageController
+    participant RS as RapportStageService
+    participant PB as PDFBox
+    participant OL as OllamaService
+    participant DB as PostgreSQL
+
+    S->>NG: depose le rapport (PDF)
+    NG->>RC: POST /api/rapports/stage/{id}
+    RC->>RS: upload(stageId, file)
+    RS->>DB: rapport_stage (statut=EN_ATTENTE)
+    RS-->>NG: 200
+
+    E->>NG: bouton "Resume IA"
+    NG->>RC: GET /api/rapports/stage/{id}/resume
+    RC->>RS: resumer(stageId)
+    RS->>PB: extractText(pdf)
+    PB-->>RS: texte brut du rapport
+    RS->>OL: resumerRapport(texte)
+    Note over OL: prompt -> llama3.2:3b (local)
+    OL-->>RS: resume structure
+    RS-->>NG: 200 {resume}
+
+    E->>NG: Valide / Refuse (+ commentaire)
+    NG->>RC: PATCH /api/rapports/stage/{id}/validation
+    RC->>RS: valider(decision, commentaire)
+    RS->>DB: statut=VALIDE | REFUSE
+    RS->>DB: notification au stagiaire
+    RS-->>NG: 200
