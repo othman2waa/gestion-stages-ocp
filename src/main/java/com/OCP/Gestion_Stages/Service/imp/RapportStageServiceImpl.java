@@ -29,6 +29,7 @@ public class RapportStageServiceImpl implements RapportStageService {
     private final DocumentStagiaireRepository documentStagiaireRepository;
     private final com.OCP.Gestion_Stages.Service.FileStorageService fileStorageService;
     private final com.OCP.Gestion_Stages.Service.OllamaService ollamaService;
+    private final com.OCP.Gestion_Stages.Service.interfaces.NotificationService notificationService;
 
     @Override
     public RapportResponse upload(Long stageId, MultipartFile file, String username) throws IOException {
@@ -83,6 +84,19 @@ public class RapportStageServiceImpl implements RapportStageService {
             }
         } catch (Exception e) {
             log.warn("Email encadrant non envoyé : {}", e.getMessage());
+        }
+
+        // Notification in-app à l'encadrant
+        try {
+            if (stage.getEncadrant() != null && stage.getEncadrant().getUser() != null) {
+                String candidat = stage.getStagiaire() != null
+                        ? stage.getStagiaire().getPrenom() + " " + stage.getStagiaire().getNom() : "Un stagiaire";
+                notificationService.notifierSysteme(stage.getEncadrant().getUser().getId(),
+                        "Nouveau rapport de stage",
+                        candidat + " a déposé son rapport pour « " + stage.getSujet() + " ».");
+            }
+        } catch (Exception e) {
+            log.warn("Notification dépôt rapport non créée : {}", e.getMessage());
         }
 
         return toResponse(saved);
@@ -165,6 +179,19 @@ public class RapportStageServiceImpl implements RapportStageService {
             }
         } catch (Exception e) {
             log.warn("Email validation rapport non envoyé : {}", e.getMessage());
+        }
+
+        // Notification in-app au stagiaire
+        try {
+            Stage stage = saved.getStage();
+            if (stage != null && stage.getStagiaire() != null && stage.getStagiaire().getUser() != null) {
+                notificationService.notifierSysteme(stage.getStagiaire().getUser().getId(),
+                        valide ? "Rapport de stage validé" : "Rapport de stage à corriger",
+                        valide ? "Votre encadrant a validé votre rapport."
+                               : "Votre encadrant a demandé une correction de votre rapport.");
+            }
+        } catch (Exception e) {
+            log.warn("Notification validation rapport non créée : {}", e.getMessage());
         }
 
         return toResponse(saved);

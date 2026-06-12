@@ -25,6 +25,8 @@ public class ConventionServiceImpl implements ConventionService, ConventionServi
 
     private final ConventionRepository conventionRepository;
     private final StageRepository stageRepository;
+    private final com.OCP.Gestion_Stages.Service.interfaces.NotificationService notificationService;
+    private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(ConventionServiceImpl.class);
 
     @Override
     public List<ConventionResponse> findAll() {
@@ -181,7 +183,18 @@ public class ConventionServiceImpl implements ConventionService, ConventionServi
                 .build();
         stage.setStatut(com.OCP.Gestion_Stages.domain.enums.StageStatus.CONVENTION_GENEREE);
         stageRepository.save(stage);
-        return toDTO(conventionRepository.save(c));
+        Convention saved = conventionRepository.save(c);
+
+        // Notification in-app au stagiaire : convocation prête
+        try {
+            if (stage.getStagiaire() != null && stage.getStagiaire().getUser() != null) {
+                notificationService.notifierConventionPrete(
+                        stage.getStagiaire().getUser().getId(), saved.getNumero());
+            }
+        } catch (Exception e) {
+            log.warn("Notification convocation non créée : {}", e.getMessage());
+        }
+        return toDTO(saved);
     }
 
     @Override

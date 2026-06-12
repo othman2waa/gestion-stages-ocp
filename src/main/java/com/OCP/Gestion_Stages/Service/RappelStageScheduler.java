@@ -44,6 +44,18 @@ public class RappelStageScheduler {
         }
     }
 
+    // Purge de rétention : anonymise les archives dont le stage est terminé depuis plus de
+    // la durée de conservation (app.retention.years), et supprime les documents associés.
+    @Scheduled(cron = "0 30 2 * * *") // chaque jour à 02h30
+    public void purgerArchivesExpirees() {
+        try {
+            int n = archiveStageService.purgerArchivesExpirees("SYSTEME_AUTO");
+            if (n > 0) log.info("Purge rétention automatique : {} archive(s) anonymisée(s)", n);
+        } catch (Exception e) {
+            log.warn("Erreur purge rétention automatique : {}", e.getMessage());
+        }
+    }
+
     // Auto-archivage : 7 jours après la date de fin de stage
     @Scheduled(cron = "0 0 7 * * *")
     public void autoArchiverStages() {

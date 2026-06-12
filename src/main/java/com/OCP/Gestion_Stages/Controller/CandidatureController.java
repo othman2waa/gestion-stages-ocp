@@ -104,6 +104,14 @@ public class CandidatureController {
                 .body(candidatureService.getCv(id));
     }
 
+    /** Suppression d'une candidature (libère l'espace candidature) : encadrant « Supprimer » ou « Refuser ». */
+    @DeleteMapping("/{id}")
+    @PreAuthorize("hasAnyRole('ENCADRANT','ADMIN_RH','RESPONSABLE_RH')")
+    public ResponseEntity<Void> supprimer(@PathVariable Long id) {
+        candidatureService.supprimer(id);
+        return ResponseEntity.noContent().build();
+    }
+
     /** Export iCalendar (.ics) de l'entretien planifié d'une candidature. */
     @GetMapping("/{id}/meeting.ics")
     @PreAuthorize("hasAnyRole('ADMIN_RH','RESPONSABLE_RH','ENCADRANT')")

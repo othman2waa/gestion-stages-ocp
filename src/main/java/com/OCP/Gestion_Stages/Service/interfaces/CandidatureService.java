@@ -15,4 +15,5 @@ public interface CandidatureService {
     List<CandidatureResponse> findByStatut(String statut);
     CandidatureResponse findById(Long id);
     byte[] getCv(Long id);
+    void supprimer(Long id);
 }

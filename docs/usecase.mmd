@@ -4,38 +4,26 @@ flowchart LR
     visiteur([Visiteur]):::actor
     stagiaire([Stagiaire]):::actor
     encadrant([Encadrant]):::actor
-    rh([Admin/Responsable RH]):::actor
+    rh([Admin / Responsable RH]):::actor
 
-    subgraph SYS[Plateforme de Gestion des Stages]
-        uc1((Postuler à une offre))
-        uc2((Consulter les offres))
-        uc3((Déposer ses documents))
-        uc4((Remplir la fiche OCP))
-        uc5((Déposer le rapport))
-        uc6((Sélectionner un candidat))
-        uc7((Planifier un entretien))
-        uc8((Suivre / Évaluer le stagiaire))
-        uc9((Valider le rapport))
-        uc10((Valider le dossier / convention))
-        uc11((Gérer comptes & utilisateurs))
-        uc12((Piloter : tableaux de bord & exports))
-        uc13((Assistant IA RH))
-        uc14((Archiver le stage))
-    end
+    uc1((Postuler à une offre))
+    uc2((Consulter les offres))
+    uc3((Déposer ses documents))
+    uc4((Remplir la fiche OCP))
+    uc5((Déposer le rapport))
+    uc6((Sélectionner un candidat))
+    uc7((Planifier un entretien))
+    uc8((Suivre / Évaluer))
+    uc9((Valider le rapport))
+    uc10((Valider dossier / convention))
+    uc11((Gérer les comptes))
+    uc12((Tableaux de bord & exports))
+    uc13((Assistant IA))
+    uc14((Archiver le stage))
 
-    visiteur --- uc1
-    visiteur --- uc2
-    stagiaire --- uc3
-    stagiaire --- uc4
-    stagiaire --- uc5
-    encadrant --- uc6
-    encadrant --- uc7
-    encadrant --- uc8
-    encadrant --- uc9
-    rh --- uc10
-    rh --- uc11
-    rh --- uc12
-    rh --- uc13
-    rh --- uc14
+    visiteur --- uc1 & uc2
+    stagiaire --- uc3 & uc4 & uc5
+    encadrant --- uc6 & uc7 & uc8 & uc9
+    rh --- uc10 & uc11 & uc12 & uc13 & uc14
 
     classDef actor fill:#00843D,color:#fff,stroke:#003B1C,stroke-width:1px;

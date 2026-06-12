@@ -23,6 +23,7 @@ public class EvaluationServiceImpl implements EvaluationService {
     private final EncadrantRepository encadrantRepository;
     private final UserRepository userRepository;
     private final StagiaireRepository stagiaireRepository;
+    private final com.OCP.Gestion_Stages.Service.interfaces.NotificationService notificationService;
     @Override
     public List<EvaluationResponse> findAll() {
         return evaluationRepository.findAll()
@@ -39,7 +40,18 @@ public class EvaluationServiceImpl implements EvaluationService {
     public EvaluationResponse create(EvaluationRequest request) {
         Evaluation evaluation = new Evaluation();
         mapToEntity(request, evaluation);
-        return toResponse(evaluationRepository.save(evaluation));
+        Evaluation saved = evaluationRepository.save(evaluation);
+
+        // Notification in-app au stagiaire : nouvelle évaluation
+        try {
+            Stage stage = saved.getStage();
+            if (stage != null && stage.getStagiaire() != null
+                    && stage.getStagiaire().getUser() != null && saved.getNote() != null) {
+                notificationService.notifierNouvelleEvaluation(
+                        stage.getStagiaire().getUser().getId(), stage.getSujet(), saved.getNote().doubleValue());
+            }
+        } catch (Exception ignored) { /* notification best-effort */ }
+        return toResponse(saved);
     }
 
     @Override
@@ -85,6 +97,16 @@ public class EvaluationServiceImpl implements EvaluationService {
                 case FIN_STAGE -> {
                     stage.setStatut(com.OCP.Gestion_Stages.domain.enums.StageStatus.EN_ATTENTE_EVALUATION);
                     stageRepository.save(stage);
+                    // Notif encadrant : fiches d'appréciation à remplir
+                    try {
+                        if (stage.getEncadrant() != null && stage.getEncadrant().getUser() != null) {
+                            String stag = stage.getStagiaire() != null
+                                    ? stage.getStagiaire().getPrenom() + " " + stage.getStagiaire().getNom() : "un stagiaire";
+                            notificationService.notifierSysteme(stage.getEncadrant().getUser().getId(),
+                                    "Fiches d'appréciation à remplir",
+                                    "Le stage de " + stag + " est terminé : pensez à remplir les fiches d'appréciation.");
+                        }
+                    } catch (Exception ignored) { /* notification best-effort */ }
                 }
                 case MI_PARCOURS -> {
                     if (stage.getStatut() == com.OCP.Gestion_Stages.domain.enums.StageStatus.CONVENTION_SIGNEE

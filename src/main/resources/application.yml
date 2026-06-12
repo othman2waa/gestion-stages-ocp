@@ -52,6 +52,9 @@ app:
   storage:
     # Dossier racine où sont écrits les fichiers uploadés (CV, documents).
     path: ./uploads
+  retention:
+    # Durée de conservation des archives (en années) avant anonymisation/purge.
+    years: 1
   ollama:
     url: http://localhost:11434/api/generate
     model: llama3.2:3b

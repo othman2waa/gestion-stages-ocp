@@ -52,6 +52,7 @@ public class CandidatureServiceImpl implements CandidatureService, CandidatureSe
     private final EtablissementRepository etablissementRepository;
     private final OnboardingChecklistRepository onboardingChecklistRepository;
     private final FileStorageService fileStorageService;
+    private final com.OCP.Gestion_Stages.Service.interfaces.NotificationService notificationService;
     private final DocumentVerificationService documentVerificationService;
 
     private static final java.util.List<String> REQUIRED_DOCS = java.util.List.of("CV", "CIN", "PHOTO", "DIPLOME");
@@ -88,6 +89,10 @@ public class CandidatureServiceImpl implements CandidatureService, CandidatureSe
             }
         }
         c.setDepartementSouhaite(request.getDepartementSouhaite());
+        // Lien vers l'entité département (permet de notifier les encadrants du département)
+        if (request.getDepartementId() != null) {
+            departementRepository.findById(request.getDepartementId()).ifPresent(c::setDepartement);
+        }
         c.setMessage(request.getMessage());
         c.setStatut("EN_ATTENTE");
         if (request.getAnnonceId() != null) {
@@ -368,6 +373,28 @@ public class CandidatureServiceImpl implements CandidatureService, CandidatureSe
         } catch (Exception e) {
             log.warn("Email RH non envoyé : {}", e.getMessage());
         }
+
+        // Notifications in-app : tous les RH + les encadrants du département visé
+        try {
+            String candidat = c.getPrenom() + " " + c.getNom();
+            String sujetStage = c.getSujetSouhaite() != null ? c.getSujetSouhaite()
+                    : (c.getDepartementSouhaite() != null ? c.getDepartementSouhaite() : "un stage");
+            java.util.List<User> rh = new java.util.ArrayList<>();
+            rh.addAll(userRepository.findByRole(UserRole.ADMIN_RH));
+            rh.addAll(userRepository.findByRole(UserRole.RESPONSABLE_RH));
+            for (User u : rh) {
+                notificationService.notifierCandidatureRecue(u.getId(), candidat, sujetStage);
+            }
+            if (c.getDepartement() != null) {
+                for (Encadrant e : encadrantRepository.findByDepartementId(c.getDepartement().getId())) {
+                    if (e.getUser() != null) {
+                        notificationService.notifierCandidatureRecue(e.getUser().getId(), candidat, sujetStage);
+                    }
+                }
+            }
+        } catch (Exception e) {
+            log.warn("Notifications in-app nouvelle candidature non créées : {}", e.getMessage());
+        }
     }
 
     private void notifierStagiaire(Candidature c) {
@@ -449,6 +476,30 @@ public class CandidatureServiceImpl implements CandidatureService, CandidatureSe
         Candidature c = candidatureRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Candidature introuvable"));
         return c.getCvChemin() != null ? fileStorageService.read(c.getCvChemin()) : c.getCvContenu();
+    }
+
+    @Override
+    @Transactional
+    public void supprimer(Long id) {
+        Candidature c = candidatureRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Candidature introuvable"));
+        // Supprimer les documents joints (fichiers disque + lignes)
+        for (DocumentCandidature doc : documentCandidatureRepository.findByCandidatureId(id)) {
+            try {
+                if (doc.getCheminFichier() != null) fileStorageService.delete(doc.getCheminFichier());
+            } catch (Exception e) {
+                log.warn("Fichier document candidature non supprimé : {}", e.getMessage());
+            }
+            documentCandidatureRepository.delete(doc);
+        }
+        // Supprimer le CV de la candidature
+        try {
+            if (c.getCvChemin() != null) fileStorageService.delete(c.getCvChemin());
+        } catch (Exception e) {
+            log.warn("CV candidature non supprimé : {}", e.getMessage());
+        }
+        candidatureRepository.delete(c);
+        log.info("Candidature {} supprimée (libération de l'espace candidature)", id);
     }
 
     private CandidatureResponse toResponse(Candidature c) {
@@ -612,6 +663,17 @@ public class CandidatureServiceImpl implements CandidatureService, CandidatureSe
                 stageRepository.save(stage);
                 log.info("Stage créé pour candidature {} — encadrant={}, sujet={}",
                         c.getId(), encadrant != null ? encadrant.getId() : "aucun", sujetFinal);
+
+                // Notification in-app au stagiaire : candidature acceptée
+                try {
+                    if (savedUser != null) {
+                        notificationService.notifierSysteme(savedUser.getId(),
+                                "Candidature acceptée",
+                                "Votre candidature a été acceptée. Votre espace stagiaire est disponible (dossier en attente d'acceptation).");
+                    }
+                } catch (Exception e) {
+                    log.warn("Notification acceptation candidature non créée : {}", e.getMessage());
+                }
 
                 // Checklist onboarding
                 try { creerChecklistOnboarding(stagiaire); } catch (Exception e) {

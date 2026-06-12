@@ -2,13 +2,20 @@ package com.OCP.Gestion_Stages.Service;
 
 import com.OCP.Gestion_Stages.Repository.ArchiveStageRepository;
 import com.OCP.Gestion_Stages.Repository.EvaluationRepository;
+import com.OCP.Gestion_Stages.Repository.DocumentStagiaireRepository;
+import com.OCP.Gestion_Stages.Repository.StageRepository;
+import com.OCP.Gestion_Stages.Repository.AuditLogRepository;
 import com.OCP.Gestion_Stages.domain.model.ArchiveStage;
+import com.OCP.Gestion_Stages.domain.model.AuditLog;
+import com.OCP.Gestion_Stages.domain.model.DocumentStagiaire;
 import com.OCP.Gestion_Stages.domain.model.Stage;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
@@ -22,6 +29,13 @@ public class ArchiveStageService {
 
     private final ArchiveStageRepository archiveRepository;
     private final EvaluationRepository evaluationRepository;
+    private final DocumentStagiaireRepository documentStagiaireRepository;
+    private final StageRepository stageRepository;
+    private final AuditLogRepository auditLogRepository;
+    private final FileStorageService fileStorageService;
+
+    @Value("${app.retention.years:1}")
+    private int retentionYears;
 
     @Transactional
     public ArchiveStage archiverStage(Stage stage, String archivePar) {
@@ -66,6 +80,74 @@ public class ArchiveStageService {
 
         log.info("Stage {} archivé par {}", stage.getId(), archivePar);
         return archiveRepository.save(archive);
+    }
+
+    /**
+     * Purge de rétention : pour chaque archive dont le stage s'est terminé il y a plus de
+     * {@code app.retention.years}, on supprime les documents du stagiaire (fichiers + lignes)
+     * et on anonymise l'archive (effacement de l'identité), en conservant les champs KPI.
+     * Renvoie le nombre d'archives anonymisées.
+     */
+    @Transactional
+    public int purgerArchivesExpirees(String declenchePar) {
+        LocalDate seuil = LocalDate.now().minusYears(retentionYears);
+        List<ArchiveStage> expirees = archiveRepository.findAllByOrderByDateArchivageDesc().stream()
+                .filter(a -> !Boolean.TRUE.equals(a.getAnonymise()))
+                .filter(a -> a.getDateFin() != null && a.getDateFin().isBefore(seuil))
+                .collect(Collectors.toList());
+
+        int docsSupprimes = 0;
+        for (ArchiveStage a : expirees) {
+            docsSupprimes += supprimerDocumentsDuStage(a.getStageId());
+            // Anonymisation : on efface les données personnelles, on garde les champs KPI
+            a.setStagiaireNom("[anonymisé]");
+            a.setStagiairePrenom("");
+            a.setStagiaireEmail(null);
+            a.setStagiaireEtablissement(null);
+            a.setEncadrantNom("[anonymisé]");
+            a.setEncadrantPrenom("");
+            a.setEncadrantEmail(null);
+            a.setSujet(null);
+            a.setAnonymise(true);
+            a.setDateAnonymisation(LocalDateTime.now());
+            archiveRepository.save(a);
+        }
+
+        if (!expirees.isEmpty()) {
+            try {
+                auditLogRepository.save(AuditLog.builder()
+                        .action("PURGE_ARCHIVE")
+                        .utilisateur(declenchePar)
+                        .details("Anonymisation de " + expirees.size() + " archive(s) > " + retentionYears
+                                + " an(s) ; " + docsSupprimes + " document(s) supprimé(s).")
+                        .build());
+            } catch (Exception e) {
+                log.warn("Journal d'audit de la purge non écrit : {}", e.getMessage());
+            }
+        }
+        log.info("Purge rétention : {} archive(s) anonymisée(s), {} document(s) supprimé(s) (par {})",
+                expirees.size(), docsSupprimes, declenchePar);
+        return expirees.size();
+    }
+
+    /** Supprime les documents (fichiers + lignes) du stagiaire rattaché au stage archivé. */
+    private int supprimerDocumentsDuStage(Long stageId) {
+        if (stageId == null) return 0;
+        var stageOpt = stageRepository.findById(stageId);
+        if (stageOpt.isEmpty() || stageOpt.get().getStagiaire() == null) return 0;
+        Long stagiaireId = stageOpt.get().getStagiaire().getId();
+        List<DocumentStagiaire> docs = documentStagiaireRepository.findByStagiaireId(stagiaireId);
+        int n = 0;
+        for (DocumentStagiaire d : docs) {
+            try {
+                if (d.getCheminFichier() != null) fileStorageService.delete(d.getCheminFichier());
+            } catch (Exception e) {
+                log.warn("Fichier non supprimé ({}) : {}", d.getCheminFichier(), e.getMessage());
+            }
+            documentStagiaireRepository.delete(d);
+            n++;
+        }
+        return n;
     }
 
     public List<Map<String, Object>> getAll(Integer annee, String departement) {
@@ -148,6 +230,7 @@ public class ArchiveStageService {
         m.put("anneeStage", a.getAnneeStage());
         m.put("dateArchivage", a.getDateArchivage() != null ? a.getDateArchivage().toString() : "");
         m.put("archivePar", a.getArchivePar());
+        m.put("anonymise", Boolean.TRUE.equals(a.getAnonymise()));
         return m;
     }
 }

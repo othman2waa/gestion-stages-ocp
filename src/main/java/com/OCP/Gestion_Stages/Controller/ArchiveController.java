@@ -40,6 +40,15 @@ public class ArchiveController {
         return ResponseEntity.ok(archiveService.getStats());
     }
 
+    // ── POST purge de rétention : anonymise les archives expirées + supprime leurs documents
+    @PostMapping("/purger")
+    @PreAuthorize("hasRole('ADMIN_RH')")
+    public ResponseEntity<Map<String, Object>> purger(@AuthenticationPrincipal UserDetails userDetails) {
+        int n = archiveService.purgerArchivesExpirees(userDetails.getUsername());
+        return ResponseEntity.ok(Map.of("anonymises", n,
+                "message", n + " archive(s) expirée(s) anonymisée(s) ; documents supprimés."));
+    }
+
     // ── POST archiver manuellement un stage
     @PostMapping("/archiver/{stageId}")
     @PreAuthorize("hasAnyRole('ADMIN_RH','RESPONSABLE_RH')")

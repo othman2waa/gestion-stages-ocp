@@ -22,6 +22,7 @@ public class FicheAppreciationServiceImpl implements FicheAppreciationService {
     private final StageRepository stageRepository;
     private final EncadrantRepository encadrantRepository;
     private final UserRepository userRepository;
+    private final com.OCP.Gestion_Stages.Service.interfaces.NotificationService notificationService;
 
     // ── Fiche Stage ──
 
@@ -38,7 +39,9 @@ public class FicheAppreciationServiceImpl implements FicheAppreciationService {
         fiche.setStage(stage);
         fiche.setEncadrant(encadrant);
         mapStageFields(request, fiche);
-        return toStageResponse(ficheStageRepo.save(fiche));
+        FicheStageResponse resp = toStageResponse(ficheStageRepo.save(fiche));
+        notifierFicheRemplie(stage, encadrant, "d'appréciation du stage");
+        return resp;
     }
 
     @Override
@@ -82,7 +85,21 @@ public class FicheAppreciationServiceImpl implements FicheAppreciationService {
         fiche.setStage(stage);
         fiche.setEncadrant(encadrant);
         mapStagiaireFields(request, fiche);
-        return toStagiaireResponse(ficheStagiaireRepo.save(fiche));
+        FicheStagiaireResponse resp = toStagiaireResponse(ficheStagiaireRepo.save(fiche));
+        notifierFicheRemplie(stage, encadrant, "d'appréciation du stagiaire");
+        return resp;
+    }
+
+    /** Notifie le stagiaire qu'une fiche d'appréciation a été remplie par l'encadrant. */
+    private void notifierFicheRemplie(Stage stage, Encadrant encadrant, String typeFiche) {
+        try {
+            if (stage.getStagiaire() != null && stage.getStagiaire().getUser() != null) {
+                String encNom = encadrant != null
+                        ? encadrant.getPrenom() + " " + encadrant.getNom() : "Votre encadrant";
+                notificationService.notifierFicheRemplie(
+                        stage.getStagiaire().getUser().getId(), typeFiche, encNom);
+            }
+        } catch (Exception ignored) { /* notification best-effort */ }
     }
 
     @Override

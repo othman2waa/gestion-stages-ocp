@@ -46,4 +46,9 @@ public class ArchiveStage {
     @Column(name = "annee_stage")         private Integer anneeStage;
     @Column(name = "date_archivage")      private LocalDateTime dateArchivage;
     @Column(name = "archive_par")         private String archivePar;
+
+    // ── Rétention : après expiration, les données personnelles sont effacées
+    //    (anonymisation), seuls les champs KPI sont conservés.
+    @Column(name = "anonymise")            private Boolean anonymise;
+    @Column(name = "date_anonymisation")   private LocalDateTime dateAnonymisation;
 }

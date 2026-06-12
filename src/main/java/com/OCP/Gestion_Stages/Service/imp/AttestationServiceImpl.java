@@ -4,6 +4,7 @@ import com.OCP.Gestion_Stages.Repository.*;
 import com.OCP.Gestion_Stages.Service.interfaces.AttestationServiceExtended;
 import com.OCP.Gestion_Stages.domain.dto.attestation.AttestationDTO;
 import com.OCP.Gestion_Stages.domain.model.*;
+import com.OCP.Gestion_Stages.domain.enums.UserRole;
 import com.OCP.Gestion_Stages.exeptions.ResourceNotFoundException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -20,6 +21,8 @@ public class AttestationServiceImpl implements AttestationServiceExtended {
 
     private final AttestationStageRepository attestationRepository;
     private final StageRepository stageRepository;
+    private final UserRepository userRepository;
+    private final com.OCP.Gestion_Stages.Service.interfaces.NotificationService notificationService;
 
     @Override
     public AttestationDTO demander(Long stageId) {
@@ -30,7 +33,18 @@ public class AttestationServiceImpl implements AttestationServiceExtended {
         AttestationStage att = new AttestationStage();
         att.setStage(stage);
         att.setStatut("EN_ATTENTE");
-        return toDTO(attestationRepository.save(att));
+        AttestationStage saved = attestationRepository.save(att);
+
+        // Notification in-app aux RH : nouvelle demande d'attestation
+        try {
+            String stagiaireNom = stage.getStagiaire() != null
+                    ? stage.getStagiaire().getPrenom() + " " + stage.getStagiaire().getNom() : "Un stagiaire";
+            for (User u : userRepository.findByRole(UserRole.ADMIN_RH)) {
+                notificationService.notifierSysteme(u.getId(), "Demande d'attestation",
+                        stagiaireNom + " a demandé son attestation de stage.");
+            }
+        } catch (Exception ignored) { /* notification best-effort */ }
+        return toDTO(saved);
     }
 
     @Override
