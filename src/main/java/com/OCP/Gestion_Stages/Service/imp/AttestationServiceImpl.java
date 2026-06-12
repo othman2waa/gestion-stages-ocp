@@ -5,6 +5,8 @@ import com.OCP.Gestion_Stages.Service.interfaces.AttestationServiceExtended;
 import com.OCP.Gestion_Stages.domain.dto.attestation.AttestationDTO;
 import com.OCP.Gestion_Stages.domain.model.*;
 import com.OCP.Gestion_Stages.domain.enums.UserRole;
+import com.OCP.Gestion_Stages.domain.enums.StageStatus;
+import com.OCP.Gestion_Stages.exeptions.BusinessException;
 import com.OCP.Gestion_Stages.exeptions.ResourceNotFoundException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -26,10 +28,13 @@ public class AttestationServiceImpl implements AttestationServiceExtended {
 
     @Override
     public AttestationDTO demander(Long stageId) {
-        if (attestationRepository.findByStageId(stageId).isPresent())
-            throw new RuntimeException("Attestation déjà demandée");
         Stage stage = stageRepository.findById(stageId)
             .orElseThrow(() -> new ResourceNotFoundException("Stage introuvable"));
+        if (attestationRepository.findByStageId(stageId).isPresent())
+            throw new BusinessException("Une attestation a déjà été demandée pour ce stage.");
+        if (stage.getStatut() != StageStatus.TERMINE)
+            throw new BusinessException("L'attestation ne peut être demandée que pour un stage terminé "
+                    + "(état actuel : « " + stage.getStatut().libelle() + " »).");
         AttestationStage att = new AttestationStage();
         att.setStage(stage);
         att.setStatut("EN_ATTENTE");

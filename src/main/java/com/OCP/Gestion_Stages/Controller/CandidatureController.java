@@ -14,6 +14,7 @@ import com.OCP.Gestion_Stages.Repository.CandidatureRepository;
 import com.OCP.Gestion_Stages.Repository.DocumentCandidatureRepository;
 import com.OCP.Gestion_Stages.domain.model.DocumentCandidature;
 import com.OCP.Gestion_Stages.exeptions.ResourceNotFoundException;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -50,7 +51,7 @@ public class CandidatureController {
     // ════════════════════════════════════════
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<?> soumettre(
-            @RequestPart("data") CandidatureRequest request,
+            @RequestPart("data") @Valid CandidatureRequest request,
             @RequestPart(value = "cv", required = false) MultipartFile cv) throws Exception {
 
         // Vérification email unique

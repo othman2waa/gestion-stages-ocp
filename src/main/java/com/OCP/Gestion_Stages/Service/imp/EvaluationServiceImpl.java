@@ -82,6 +82,10 @@ public class EvaluationServiceImpl implements EvaluationService {
 
         Encadrant encadrant = encadrantRepository.findById(request.getEncadrantId())
                 .orElseThrow(() -> new ResourceNotFoundException("Encadrant introuvable"));
+        // Sécurité métier : l'encadrant ne peut évaluer que les stages qui lui sont affectés
+        if (stage.getEncadrant() != null && !stage.getEncadrant().getId().equals(encadrant.getId()))
+            throw new com.OCP.Gestion_Stages.exeptions.UnauthorizedException(
+                    "Vous ne pouvez évaluer que les stages dont vous êtes l'encadrant.");
         evaluation.setEncadrant(encadrant);
 
         if (request.getNote() != null)
@@ -95,6 +99,9 @@ public class EvaluationServiceImpl implements EvaluationService {
         if (request.getTypeEvaluation() != null) {
             switch (request.getTypeEvaluation()) {
                 case FIN_STAGE -> {
+                    // Transition contrôlée : on ne clôt que les stages en cours
+                    stage.getStatut().assertCanTransitionTo(
+                            com.OCP.Gestion_Stages.domain.enums.StageStatus.EN_ATTENTE_EVALUATION);
                     stage.setStatut(com.OCP.Gestion_Stages.domain.enums.StageStatus.EN_ATTENTE_EVALUATION);
                     stageRepository.save(stage);
                     // Notif encadrant : fiches d'appréciation à remplir

@@ -105,9 +105,21 @@ public class ConventionServiceImpl implements ConventionService, ConventionServi
                 .orElseThrow(() -> new ResourceNotFoundException("Convocation introuvable : " + id));
         if (c.getStage() == null)
             throw new ResourceNotFoundException("Aucun stage lié à cette convocation");
-        c.getStage().setEntiteAccueil(entiteAccueil != null && !entiteAccueil.isBlank()
-                ? entiteAccueil.trim() : null);
+        String entite = entiteAccueil != null && !entiteAccueil.isBlank() ? entiteAccueil.trim() : null;
+        c.getStage().setEntiteAccueil(entite);
         stageRepository.save(c.getStage());
+
+        // Notification in-app au stagiaire : entité d'accueil affectée
+        try {
+            Stage stage = c.getStage();
+            if (entite != null && stage.getStagiaire() != null && stage.getStagiaire().getUser() != null) {
+                notificationService.notifierSysteme(stage.getStagiaire().getUser().getId(),
+                        "Entité d'accueil affectée",
+                        "Votre entité d'accueil pour le stage a été définie : « " + entite + " ».");
+            }
+        } catch (Exception e) {
+            log.warn("Notification entité d'accueil non créée : {}", e.getMessage());
+        }
         return toResponse(c);
     }
 
@@ -170,6 +182,12 @@ public class ConventionServiceImpl implements ConventionService, ConventionServi
         // (évite les doublons et ne régresse pas le statut du stage).
         var existante = conventionRepository.findByStageId(stageId);
         if (existante.isPresent()) return toDTO(existante.get());
+
+        // Garde-fou : pas de convocation pour un stage annulé, rejeté ou déjà terminé
+        StageStatus st = stage.getStatut();
+        if (st == StageStatus.ANNULE || st == StageStatus.REJETEE || st == StageStatus.TERMINE)
+            throw new com.OCP.Gestion_Stages.exeptions.BusinessException(
+                    "Impossible de générer une convocation pour un stage « " + st.libelle() + " ».");
 
         // Filet : si le stage n'a pas de dates, on en pose par défaut (sinon convocation sans période)
         if (stage.getDateDebut() == null) stage.setDateDebut(java.time.LocalDate.now());

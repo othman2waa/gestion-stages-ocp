@@ -13,6 +13,8 @@ import com.OCP.Gestion_Stages.domain.enums.StageStatus;
 import com.OCP.Gestion_Stages.domain.model.DocumentStagiaire;
 import com.OCP.Gestion_Stages.domain.model.Stagiaire;
 import com.OCP.Gestion_Stages.domain.model.User;
+import com.OCP.Gestion_Stages.exeptions.ResourceNotFoundException;
+import com.OCP.Gestion_Stages.exeptions.UnauthorizedException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -98,10 +100,10 @@ public class DocumentStagiaireServiceImpl implements DocumentStagiaireService {
     public void delete(String username, Long documentId) {
         Stagiaire stagiaire = resolveStagiaire(username);
         DocumentStagiaire doc = documentRepository.findById(documentId)
-                .orElseThrow(() -> new RuntimeException("Document introuvable"));
+                .orElseThrow(() -> new ResourceNotFoundException("Document introuvable"));
 
         if (!doc.getStagiaire().getId().equals(stagiaire.getId())) {
-            throw new RuntimeException("Vous ne pouvez supprimer que vos propres documents");
+            throw new UnauthorizedException("Vous ne pouvez supprimer que vos propres documents.");
         }
         fileStorageService.delete(doc.getCheminFichier());
         documentRepository.delete(doc);

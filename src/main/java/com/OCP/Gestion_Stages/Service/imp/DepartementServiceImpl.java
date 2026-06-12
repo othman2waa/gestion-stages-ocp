@@ -10,6 +10,7 @@ import com.OCP.Gestion_Stages.domain.dto.departement.DepartementResponse;
 import com.OCP.Gestion_Stages.domain.model.Departement;
 import com.OCP.Gestion_Stages.domain.enums.StageStatus;
 import com.OCP.Gestion_Stages.exeptions.ResourceNotFoundException;
+import com.OCP.Gestion_Stages.exeptions.BusinessException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -50,7 +51,7 @@ public class DepartementServiceImpl implements DepartementService {
     @Override
     public DepartementResponse create(DepartementRequest request) {
         if (departementRepository.existsByCode(request.getCode()))
-            throw new RuntimeException("Code département déjà utilisé : " + request.getCode());
+            throw new BusinessException("Code département déjà utilisé : " + request.getCode());
         Departement d = new Departement();
         mapToEntity(request, d);
         return toResponse(departementRepository.save(d));

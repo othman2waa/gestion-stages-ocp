@@ -6,6 +6,8 @@ import com.OCP.Gestion_Stages.Service.interfaces.RapportStageService;
 import com.OCP.Gestion_Stages.domain.dto.rapport.RapportResponse;
 import com.OCP.Gestion_Stages.domain.model.*;
 import com.OCP.Gestion_Stages.exeptions.ResourceNotFoundException;
+import com.OCP.Gestion_Stages.exeptions.BusinessException;
+import com.OCP.Gestion_Stages.domain.enums.StageStatus;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -35,6 +37,12 @@ public class RapportStageServiceImpl implements RapportStageService {
     public RapportResponse upload(Long stageId, MultipartFile file, String username) throws IOException {
         Stage stage = stageRepository.findById(stageId)
                 .orElseThrow(() -> new ResourceNotFoundException("Stage introuvable : " + stageId));
+
+        // Garde-fou métier : un rapport ne se dépose que sur un stage en cours ou en attente d'évaluation
+        if (stage.getStatut() != StageStatus.EN_COURS
+                && stage.getStatut() != StageStatus.EN_ATTENTE_EVALUATION)
+            throw new BusinessException("Le rapport ne peut être déposé que pour un stage en cours "
+                    + "(état actuel : « " + stage.getStatut().libelle() + " »).");
 
         // Remplace l'ancien rapport si existant
         rapportRepository.findByStageId(stageId).ifPresent(rapportRepository::delete);

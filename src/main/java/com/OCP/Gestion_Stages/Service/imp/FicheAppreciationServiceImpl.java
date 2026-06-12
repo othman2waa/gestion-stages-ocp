@@ -5,6 +5,7 @@ import com.OCP.Gestion_Stages.Service.interfaces.FicheAppreciationService;
 import com.OCP.Gestion_Stages.domain.dto.fiche.*;
 import com.OCP.Gestion_Stages.domain.model.*;
 import com.OCP.Gestion_Stages.exeptions.ResourceNotFoundException;
+import com.OCP.Gestion_Stages.exeptions.UnauthorizedException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -34,6 +35,7 @@ public class FicheAppreciationServiceImpl implements FicheAppreciationService {
             throw new IllegalStateException("Une fiche d'appréciation de stage existe déjà pour ce stage");
         }
         Encadrant encadrant = resolveEncadrant(username);
+        assertEncadrantDuStage(stage, encadrant);
 
         FicheAppreciationStage fiche = new FicheAppreciationStage();
         fiche.setStage(stage);
@@ -80,6 +82,7 @@ public class FicheAppreciationServiceImpl implements FicheAppreciationService {
             throw new IllegalStateException("Une fiche d'appréciation stagiaire existe déjà pour ce stage");
         }
         Encadrant encadrant = resolveEncadrant(username);
+        assertEncadrantDuStage(stage, encadrant);
 
         FicheAppreciationStagiaire fiche = new FicheAppreciationStagiaire();
         fiche.setStage(stage);
@@ -129,6 +132,12 @@ public class FicheAppreciationServiceImpl implements FicheAppreciationService {
     }
 
     // ── Helpers ──
+
+    /** Sécurité métier : l'encadrant ne peut renseigner une fiche que pour un stage qui lui est affecté. */
+    private void assertEncadrantDuStage(Stage stage, Encadrant encadrant) {
+        if (stage.getEncadrant() != null && !stage.getEncadrant().getId().equals(encadrant.getId()))
+            throw new UnauthorizedException("Vous ne pouvez renseigner une fiche que pour vos propres stagiaires.");
+    }
 
     private Encadrant resolveEncadrant(String username) {
         User user = userRepository.findByUsername(username)

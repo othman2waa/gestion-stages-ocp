@@ -85,6 +85,8 @@ public class StageServiceImpl implements StageService {
     public StageResponse updateStatut(Long id, StageStatus statut) {
         Stage stage = stageRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Stage introuvable : " + id));
+        // Cohérence du cycle de vie : interdit les transitions illégitimes
+        stage.getStatut().assertCanTransitionTo(statut);
         stage.setStatut(statut);
         Stage saved = stageRepository.save(stage);
 

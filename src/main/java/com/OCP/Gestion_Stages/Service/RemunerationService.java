@@ -111,6 +111,8 @@ public class RemunerationService {
         for (AttestationStage att : attestationRepository.findByStatutOrderByDateDemandeDesc("APPROUVEE")) {
             Stage stage = att.getStage();
             if (stage == null) continue;
+            // 0) Stage non annulé
+            if (stage.getStatut() == com.OCP.Gestion_Stages.domain.enums.StageStatus.ANNULE) continue;
             // 1) Stage PFE
             if (stage.getTypeStage() == null || !"PFE".equalsIgnoreCase(stage.getTypeStage().name())) continue;
             // 2) Niveau Bac+5

@@ -6,6 +6,7 @@ import com.OCP.Gestion_Stages.Service.interfaces.AttestationServiceExtended;
 import com.OCP.Gestion_Stages.domain.dto.attestation.AttestationDTO;
 import com.OCP.Gestion_Stages.domain.model.AttestationStage;
 import com.OCP.Gestion_Stages.exeptions.ResourceNotFoundException;
+import com.OCP.Gestion_Stages.exeptions.BusinessException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -87,7 +88,7 @@ public class AttestationController {
         AttestationStage att = attestationRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Attestation introuvable"));
         if (!"APPROUVEE".equals(att.getStatut()))
-            throw new RuntimeException("Attestation non approuvée");
+            throw new BusinessException("Attestation non approuvée : le PDF n'est disponible qu'après approbation.");
         byte[] pdf = pdfService.genererAttestation(att);
         return ResponseEntity.ok()
                 .header(HttpHeaders.CONTENT_DISPOSITION,
