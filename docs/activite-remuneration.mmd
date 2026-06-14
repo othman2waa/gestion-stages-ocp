@@ -1,0 +1,13 @@
+%%{init: {'theme':'base','themeVariables':{'primaryColor':'#e8f5ee','primaryBorderColor':'#2e7d52','primaryTextColor':'#1a3c2e','lineColor':'#5a7d6c','fontSize':'14px'}}}%%
+flowchart TD
+  A(["Stage PFE termine"]) --> B{"Niveau Bac+5 ?"}
+  B -- non --> X["Exclu de la liste"]
+  B -- oui --> C{"Attestation validee ?"}
+  C -- non --> X
+  C -- oui --> D{"Date de fin du stage ?"}
+  D -- "1 juil au 31 aout N" --> E["Tranche Septembre N"]
+  D -- "1 sept N-1 au 30 juin N" --> F["Tranche Juillet N"]
+  D -- "apres le 31 aout N" --> G["Tranche Juillet N+1"]
+  E --> H(["Liste envoyee au departement"])
+  F --> H
+  G --> H

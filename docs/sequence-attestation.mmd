@@ -1,0 +1,29 @@
+%%{init: {'theme':'base','themeVariables':{'primaryColor':'#e8f5ee','primaryBorderColor':'#2e7d52','primaryTextColor':'#1a3c2e','lineColor':'#5a7d6c','actorBkg':'#e8f5ee','actorBorder':'#2e7d52','fontSize':'14px'}}}%%
+sequenceDiagram
+    actor S as Stagiaire
+    actor R as Agent RH
+    participant NG as Angular
+    participant AC as AttestationController
+    participant AS as AttestationService
+    participant NS as NotificationService
+    participant PDF as iText 7
+    participant DB as PostgreSQL
+
+    S->>NG: demande son attestation
+    NG->>AC: POST /api/attestations/{stageId}
+    AC->>AS: demander(stageId)
+    AS->>DB: attestation (statut=EN_ATTENTE)
+    AS->>NS: notifie les RH
+    AS-->>NG: 200
+
+    R->>NG: Approuver / Refuser
+    NG->>AC: PATCH /api/attestations/{id}/approuver
+    AC->>AS: approuver(id, agent)
+    AS->>DB: statut=APPROUVEE + numero ATT-...
+    AS-->>NG: 200
+
+    S->>NG: telecharge l'attestation
+    NG->>AC: GET /api/attestations/{id}/pdf
+    AC->>PDF: genererAttestation(att)
+    PDF-->>AC: document PDF
+    AC-->>NG: application/pdf

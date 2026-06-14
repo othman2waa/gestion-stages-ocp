@@ -16,4 +16,23 @@ public class StagiaireResponse {
     private Long etablissementId;
     private String etablissementNom;
     private LocalDateTime createdAt;
+    private String username;
+    private Boolean actif;
+    private Long userId;
+    private Long departementId;
+    private String departementNom;
+    // Statut du stage le plus récent (null si aucun stage) : sert à distinguer
+    // les stagiaires actifs (en cours) des stagiaires ayant terminé leur stage.
+    private String stageStatut;
+
+    // ── Fiche de renseignement OCP (saisie par le stagiaire) — visible côté RH
+    private String diplome;
+    private String adressePersonnelle;
+    private String villeEtablissement;
+    private String adresseLogementStage;
+    private String contactUrgenceNom;
+    private String contactUrgenceTel;
+    private String serviceAccueil;
+    private String observation;
+    private Boolean ficheRenseignementCompletee;
 }

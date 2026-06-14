@@ -1,0 +1,201 @@
+%% Schéma Entité-Association — Plateforme de Gestion des Stages OCP
+%% Rendu : https://mermaid.live  ou  bloc ```mermaid``` (GitHub / Markdown)
+erDiagram
+    USERS ||--o| STAGIAIRE : "compte"
+    USERS ||--o| ENCADRANT : "compte"
+    ETABLISSEMENT ||--o{ STAGIAIRE : "inscrit"
+    DEPARTEMENT ||--o{ ENCADRANT : "rattache"
+    DEPARTEMENT ||--o{ STAGE : "héberge"
+    DEPARTEMENT ||--o{ DEPARTEMENT_SPECIALITE : "définit"
+    DEPARTEMENT ||--o{ SUJET_STAGE : "propose"
+    DEPARTEMENT ||--o{ CANDIDATURE : "vise"
+
+    STAGIAIRE ||--o{ STAGE : "effectue"
+    STAGIAIRE ||--o{ DOCUMENT_STAGIAIRE : "dépose"
+    STAGIAIRE ||--o{ ONBOARDING_CHECKLIST : "suit"
+    ENCADRANT ||--o{ STAGE : "encadre"
+    ENCADRANT ||--o{ SUJET_STAGE : "rédige"
+
+    STAGE ||--o| CONVENTION : "génère"
+    STAGE ||--o{ EVALUATION : "reçoit"
+    STAGE ||--o| RAPPORT_STAGE : "produit"
+    STAGE ||--o{ SUIVIS_HEBDOMADAIRES : "journalise"
+    STAGE ||--o{ POINTAGES : "pointe"
+    STAGE ||--o| ATTESTATION_STAGE : "atteste"
+    STAGE ||--o| FICHE_APPRECIATION_STAGE : "évalue"
+    STAGE ||--o| FICHE_APPRECIATION_STAGIAIRE : "évalue"
+    STAGE ||--o{ STAGE_HISTORIQUE : "trace"
+    STAGE ||--o| SUJET_STAGE : "concrétise"
+    STAGE ||--o| ARCHIVE_STAGE : "archive"
+
+    CANDIDATURE ||--o{ DOCUMENT_CANDIDATURE : "joint"
+    ANNONCE_STAGE ||--o{ CANDIDATURE : "suscite"
+
+    USERS {
+        bigint id PK
+        string username
+        string password
+        enum role "UserRole"
+        boolean actif
+    }
+    STAGIAIRE {
+        bigint id PK
+        bigint user_id FK
+        bigint etablissement_id FK
+        bigint departement_id FK
+        string nom
+        string prenom
+        string cin
+        string filiere
+        string niveau
+        boolean fiche_renseignement_completee
+    }
+    ENCADRANT {
+        bigint id PK
+        bigint user_id FK
+        bigint departement_id FK
+        string nom
+        string prenom
+        string email
+    }
+    DEPARTEMENT {
+        bigint id PK
+        string code
+        string nom
+        string responsable
+    }
+    ETABLISSEMENT {
+        bigint id PK
+        string nom
+    }
+    DEPARTEMENT_SPECIALITE {
+        bigint id PK
+        bigint departement_id FK
+        string nom
+    }
+    STAGE {
+        bigint id PK
+        bigint stagiaire_id FK
+        bigint encadrant_id FK
+        bigint departement_id FK
+        string sujet
+        enum type_stage "TypeStage"
+        enum statut "StageStatus"
+        date date_debut
+        date date_fin
+    }
+    CANDIDATURE {
+        bigint id PK
+        bigint departement_id FK
+        bigint annonce_id FK
+        string nom
+        string prenom
+        string email
+        string statut
+        int score_matching
+        string cv_chemin
+    }
+    DOCUMENT_CANDIDATURE {
+        bigint id PK
+        bigint candidature_id FK
+        string type_document
+        string chemin_fichier
+        string statut_ia
+    }
+    ANNONCE_STAGE {
+        bigint id PK
+        string titre
+        string type_stage
+        int nombre_postes
+        boolean actif
+    }
+    SUJET_STAGE {
+        bigint id PK
+        bigint encadrant_id FK
+        bigint departement_id FK
+        bigint stage_id FK
+        string titre
+        string statut
+    }
+    CONVENTION {
+        bigint id PK
+        bigint stage_id FK
+        enum statut "ConventionStatus"
+    }
+    EVALUATION {
+        bigint id PK
+        bigint stage_id FK
+        enum type "TypeEvaluation"
+        numeric note
+    }
+    RAPPORT_STAGE {
+        bigint id PK
+        bigint stage_id FK
+        string nom_fichier
+        string statut "EN_ATTENTE/VALIDE/REFUSE"
+        string commentaire_validation
+        datetime valide_at
+    }
+    FICHE_APPRECIATION_STAGE {
+        bigint id PK
+        bigint stage_id FK
+    }
+    FICHE_APPRECIATION_STAGIAIRE {
+        bigint id PK
+        bigint stage_id FK
+    }
+    SUIVIS_HEBDOMADAIRES {
+        bigint id PK
+        bigint stage_id FK
+    }
+    POINTAGES {
+        bigint id PK
+        bigint stage_id FK
+    }
+    ATTESTATION_STAGE {
+        bigint id PK
+        bigint stage_id FK
+        string statut
+        string numero_attestation
+    }
+    DOCUMENT_STAGIAIRE {
+        bigint id PK
+        bigint stagiaire_id FK
+        string type_document "CV/CIN/RAPPORT/..."
+        string chemin_fichier
+    }
+    ONBOARDING_CHECKLIST {
+        bigint id PK
+        bigint stagiaire_id FK
+        string etape
+        boolean completed
+    }
+    STAGE_HISTORIQUE {
+        bigint id PK
+        bigint stage_id FK
+        string action
+    }
+    ARCHIVE_STAGE {
+        bigint id PK
+        bigint stage_id UK
+        string mention
+        numeric note_finale
+        int annee_stage
+    }
+    AUDIT_LOG {
+        bigint id PK
+        string action
+        string utilisateur
+        datetime created_at
+    }
+    NOTIFICATION {
+        bigint id PK
+        string destinataire
+        string message
+        boolean lu
+    }
+    COMPTE_STAGIAIRE_LOG {
+        bigint id PK
+        bigint stagiaire_id
+        string action
+    }

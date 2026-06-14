@@ -1,0 +1,28 @@
+%%{init: {'theme':'base','themeVariables':{'primaryColor':'#e8f5ee','primaryBorderColor':'#2e7d52','primaryTextColor':'#1a3c2e','lineColor':'#5a7d6c','actorBkg':'#e8f5ee','actorBorder':'#2e7d52','fontSize':'14px'}}}%%
+sequenceDiagram
+    actor R as Agent RH
+    participant NG as Angular
+    participant CC as ConventionController
+    participant CS as ConventionService
+    participant PDF as ConventionPdfService
+    participant NS as NotificationService
+    participant DB as PostgreSQL
+
+    R->>NG: genere la convocation d'un stage
+    NG->>CC: POST /api/conventions/generer/{stageId}
+    CC->>CS: generer(stageId)
+    CS->>DB: cree convention (n0, dates)
+    CS->>NS: notifie le stagiaire (convocation prete)
+    CS-->>NG: 200 ConventionResponse
+
+    R->>NG: affecte l'entite d'accueil
+    NG->>CC: PATCH /api/conventions/{id}/entite-accueil
+    CC->>CS: affecterEntiteAccueil(id, entite)
+    CS->>DB: maj entite_accueil
+
+    R->>NG: telecharge le PDF
+    NG->>CC: GET /api/conventions/{id}/pdf
+    CC->>PDF: genererPdf(convention)
+    Note over PDF: iText 7 — logo, badge,<br/>tableau, QR code (1 page)
+    PDF-->>CC: document PDF
+    CC-->>NG: application/pdf

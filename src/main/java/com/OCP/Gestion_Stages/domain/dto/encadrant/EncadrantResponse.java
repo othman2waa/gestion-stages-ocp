@@ -14,5 +14,7 @@ public class EncadrantResponse {
     private String departementNom;
     private Long departementId;
     private Long userId;
+    private String username;
+    private String generatedPassword;
     private LocalDateTime createdAt;
 }

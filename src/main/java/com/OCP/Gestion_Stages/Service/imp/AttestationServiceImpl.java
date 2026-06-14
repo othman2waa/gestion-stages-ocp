@@ -1,0 +1,113 @@
+package com.OCP.Gestion_Stages.Service.imp;
+
+import com.OCP.Gestion_Stages.Repository.*;
+import com.OCP.Gestion_Stages.Service.interfaces.AttestationServiceExtended;
+import com.OCP.Gestion_Stages.domain.dto.attestation.AttestationDTO;
+import com.OCP.Gestion_Stages.domain.model.*;
+import com.OCP.Gestion_Stages.domain.enums.UserRole;
+import com.OCP.Gestion_Stages.domain.enums.StageStatus;
+import com.OCP.Gestion_Stages.exeptions.BusinessException;
+import com.OCP.Gestion_Stages.exeptions.ResourceNotFoundException;
+import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.util.List;
+import java.util.stream.Collectors;
+
+@Service
+@RequiredArgsConstructor
+@Transactional
+public class AttestationServiceImpl implements AttestationServiceExtended {
+
+    private final AttestationStageRepository attestationRepository;
+    private final StageRepository stageRepository;
+    private final UserRepository userRepository;
+    private final com.OCP.Gestion_Stages.Service.interfaces.NotificationService notificationService;
+
+    @Override
+    public AttestationDTO demander(Long stageId) {
+        Stage stage = stageRepository.findById(stageId)
+            .orElseThrow(() -> new ResourceNotFoundException("Stage introuvable"));
+        if (attestationRepository.findByStageId(stageId).isPresent())
+            throw new BusinessException("Une attestation a déjà été demandée pour ce stage.");
+        if (stage.getStatut() != StageStatus.TERMINE)
+            throw new BusinessException("L'attestation ne peut être demandée que pour un stage terminé "
+                    + "(état actuel : « " + stage.getStatut().libelle() + " »).");
+        AttestationStage att = new AttestationStage();
+        att.setStage(stage);
+        att.setStatut("EN_ATTENTE");
+        AttestationStage saved = attestationRepository.save(att);
+
+        // Notification in-app aux RH : nouvelle demande d'attestation
+        try {
+            String stagiaireNom = stage.getStagiaire() != null
+                    ? stage.getStagiaire().getPrenom() + " " + stage.getStagiaire().getNom() : "Un stagiaire";
+            for (User u : userRepository.findByRole(UserRole.ADMIN_RH)) {
+                notificationService.notifierSysteme(u.getId(), "Demande d'attestation",
+                        stagiaireNom + " a demandé son attestation de stage.");
+            }
+        } catch (Exception ignored) { /* notification best-effort */ }
+        return toDTO(saved);
+    }
+
+    @Override
+    public AttestationDTO getMaDemande(Long stageId) {
+        return attestationRepository.findByStageId(stageId)
+            .map(this::toDTO).orElse(null);
+    }
+
+    @Override
+    public List<AttestationDTO> getAll() {
+        return attestationRepository.findAllByOrderByDateDemandeDesc()
+            .stream().map(this::toDTO).collect(Collectors.toList());
+    }
+
+    @Override
+    public List<AttestationDTO> getEnAttente() {
+        return attestationRepository.findByStatutOrderByDateDemandeDesc("EN_ATTENTE")
+            .stream().map(this::toDTO).collect(Collectors.toList());
+    }
+
+    @Override
+    public AttestationDTO approuver(Long id, String username) {
+        AttestationStage att = attestationRepository.findById(id)
+            .orElseThrow(() -> new ResourceNotFoundException("Attestation introuvable"));
+        att.setStatut("APPROUVEE");
+        att.setDateTraitement(LocalDateTime.now());
+        att.setTraitePar(username);
+        att.setNumeroAttestation("ATT-" + att.getStage().getId() + "-" +
+            LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMM")));
+        return toDTO(attestationRepository.save(att));
+    }
+
+    @Override
+    public AttestationDTO refuser(Long id, String commentaire, String username) {
+        AttestationStage att = attestationRepository.findById(id)
+            .orElseThrow(() -> new ResourceNotFoundException("Attestation introuvable"));
+        att.setStatut("REFUSEE");
+        att.setDateTraitement(LocalDateTime.now());
+        att.setTraitePar(username);
+        att.setCommentaire(commentaire);
+        return toDTO(attestationRepository.save(att));
+    }
+
+    @Override
+    public AttestationDTO toDTO(AttestationStage att) {
+        Stage s = att.getStage();
+        return AttestationDTO.builder()
+            .id(att.getId())
+            .statut(att.getStatut())
+            .dateDemande(att.getDateDemande())
+            .dateTraitement(att.getDateTraitement())
+            .traitePar(att.getTraitePar() != null ? att.getTraitePar() : "")
+            .numeroAttestation(att.getNumeroAttestation() != null ? att.getNumeroAttestation() : "")
+            .commentaire(att.getCommentaire() != null ? att.getCommentaire() : "")
+            .stageId(s != null ? s.getId() : null)
+            .stageSujet(s != null && s.getSujet() != null ? s.getSujet() : "")
+            .stagiaireNom(s != null && s.getStagiaire() != null
+                ? s.getStagiaire().getPrenom() + " " + s.getStagiaire().getNom() : "")
+            .build();
+    }
+}

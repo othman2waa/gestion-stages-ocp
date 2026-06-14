@@ -1,0 +1,116 @@
+% =====================================================================
+%  DIAGRAMMES DU RAPPORT — Gestion des Stages OCP
+%  Blocs prêts à coller dans rapport-pfe-final.tex (macro \diagram déjà définie).
+%  Toutes les images sont dans images/ (rendu Mermaid, thème OCP).
+%  Largeurs ajustées au format : séquences = \textwidth ; états/activité = portrait.
+% =====================================================================
+
+% ---------------------------------------------------------------------
+%  TRANSVERSAL — Architecture & cycles de vie  (Chapitre Conception)
+% ---------------------------------------------------------------------
+
+\begin{figure}[H]
+\centering
+\diagram{architecture.png}{docs/architecture.mmd}{0.92\textwidth}
+\caption{Architecture en couches de la plateforme (Angular, Spring Boot, intégrations, PostgreSQL).}
+\label{fig:architecture}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\diagram{etat-stage.png}{docs/etat-stage.mmd}{0.42\textwidth}
+\caption{Diagramme d'états — cycle de vie d'un stage.}
+\label{fig:etat-stage}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\diagram{etat-candidature.png}{docs/etat-candidature.mmd}{0.7\textwidth}
+\caption{Diagramme d'états — cycle de vie d'une candidature.}
+\label{fig:etat-candidature}
+\end{figure}
+
+% ---------------------------------------------------------------------
+%  FONCTIONNALITÉS — Diagrammes de séquence  (Chapitre Réalisation)
+% ---------------------------------------------------------------------
+
+\begin{figure}[H]
+\centering
+\diagram{sequence-login-jwt.png}{docs/sequence-login-jwt.mmd}{\textwidth}
+\caption{Séquence — authentification JWT.}
+\label{fig:seq-login}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\diagram{sequence-candidature.png}{docs/sequence-candidature.mmd}{\textwidth}
+\caption{Séquence — candidature : dépôt, entretien et décision de l'encadrant.}
+\label{fig:seq-candidature}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\diagram{sequence-convocation.png}{docs/sequence-convocation.mmd}{\textwidth}
+\caption{Séquence — génération de la convocation de stage (PDF iText, entité d'accueil).}
+\label{fig:seq-convocation}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\diagram{sequence-rapport-ia.png}{docs/sequence-rapport-ia.mmd}{\textwidth}
+\caption{Séquence — dépôt du rapport, résumé par IA (Ollama) et validation.}
+\label{fig:seq-rapport-ia}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\diagram{sequence-attestation.png}{docs/sequence-attestation.mmd}{\textwidth}
+\caption{Séquence — demande, approbation et édition de l'attestation de stage.}
+\label{fig:seq-attestation}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\diagram{sequence-evaluation-fiche.png}{docs/sequence-evaluation-fiche.mmd}{\textwidth}
+\caption{Séquence — évaluation et fiches d'appréciation de fin de stage.}
+\label{fig:seq-evaluation}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\diagram{sequence-notification.png}{docs/sequence-notification.mmd}{\textwidth}
+\caption{Séquence — notifications événementielles in-app.}
+\label{fig:seq-notification}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\diagram{sequence-archivage.png}{docs/sequence-archivage.mmd}{\textwidth}
+\caption{Séquence — archivage : purge et anonymisation planifiées (rétention).}
+\label{fig:seq-archivage}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\diagram{sequence-remuneration.png}{docs/sequence-remuneration.mmd}{\textwidth}
+\caption{Séquence — génération de la liste de rémunération PFE par tranche.}
+\label{fig:seq-remuneration}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\diagram{sequence-chatbot.png}{docs/sequence-chatbot.mmd}{\textwidth}
+\caption{Séquence — assistant conversationnel (chatbot) adossé au LLM local.}
+\label{fig:seq-chatbot}
+\end{figure}
+
+% ---------------------------------------------------------------------
+%  RÈGLE MÉTIER — Diagramme d'activité
+% ---------------------------------------------------------------------
+
+\begin{figure}[H]
+\centering
+\diagram{activite-remuneration.png}{docs/activite-remuneration.mmd}{0.55\textwidth}
+\caption{Diagramme d'activité — affectation d'un stage PFE à sa tranche de rémunération.}
+\label{fig:act-remuneration}
+\end{figure}

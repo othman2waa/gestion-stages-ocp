@@ -1,0 +1,16 @@
+%%{init: {'theme':'base','themeVariables':{'primaryColor':'#e8f5ee','primaryBorderColor':'#2e7d52','primaryTextColor':'#1a3c2e','lineColor':'#5a7d6c','fontSize':'14px'}}}%%
+stateDiagram-v2
+  [*] --> EN_ATTENTE: candidature creee
+  EN_ATTENTE --> EN_ATTENTE_VALIDATION: dossier soumis
+  EN_ATTENTE_VALIDATION --> VALIDEE: validation RH
+  EN_ATTENTE_VALIDATION --> REJETEE: refus RH
+  VALIDEE --> CONVENTION_GENEREE: convocation generee
+  CONVENTION_GENEREE --> CONVENTION_SIGNEE: convention signee
+  CONVENTION_SIGNEE --> EN_COURS: debut du stage
+  EN_COURS --> EN_ATTENTE_EVALUATION: evaluation de fin de stage
+  EN_ATTENTE_EVALUATION --> TERMINE: fiches + attestation
+  EN_ATTENTE --> ANNULE
+  EN_COURS --> ANNULE
+  REJETEE --> [*]
+  ANNULE --> [*]
+  TERMINE --> [*]

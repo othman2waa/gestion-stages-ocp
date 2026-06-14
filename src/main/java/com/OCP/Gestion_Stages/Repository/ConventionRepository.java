@@ -13,4 +13,5 @@ public interface ConventionRepository extends JpaRepository<Convention, Long> {
     Optional<Convention> findByStageId(Long stageId);
     Optional<Convention> findByNumero(String numero);
     List<Convention> findByStatut(ConventionStatus statut);
+    List<Convention> findAllByOrderByCreatedAtDesc();
 }

@@ -1,0 +1,28 @@
+%% Séquence : dépôt et validation du rapport de stage — Gestion des Stages OCP
+sequenceDiagram
+    actor S as Stagiaire
+    actor E as Encadrant
+    participant NG as Angular
+    participant RC as RapportStageController
+    participant RS as RapportStageService
+    participant FS as FileStorageService
+    participant DB as PostgreSQL
+    participant ML as EmailService
+
+    S->>NG: dépose le rapport (PDF)
+    NG->>RC: POST /api/rapports/stage/{id} (multipart)
+    RC->>RS: upload(stageId, file)
+    RS->>DB: enregistre rapport_stage (statut=EN_ATTENTE)
+    RS->>ML: notifie l'encadrant
+    RS-->>NG: 200 RapportResponse
+
+    E->>NG: consulte puis Valide / Refuse (+ commentaire)
+    NG->>RC: PATCH /api/rapports/stage/{id}/validation
+    RC->>RS: valider(decision, commentaire)
+    RS->>DB: maj statut (VALIDE|REFUSE) + valide_at
+    alt décision = VALIDE
+        RS->>FS: store(contenu) sur disque
+        RS->>DB: archive dans document_stagiaire (type=RAPPORT)
+    end
+    RS->>ML: notifie le stagiaire (résultat + commentaire)
+    RS-->>NG: 200 RapportResponse (statut)

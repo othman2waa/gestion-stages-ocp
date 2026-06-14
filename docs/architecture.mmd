@@ -1,0 +1,34 @@
+%%{init: {'theme':'base','themeVariables':{'primaryColor':'#e8f5ee','primaryBorderColor':'#2e7d52','primaryTextColor':'#1a3c2e','lineColor':'#5a7d6c','fontSize':'14px'}}}%%
+flowchart TB
+  subgraph Client["Couche Presentation — Angular 18 (SPA)"]
+    UI["Composants standalone<br/>Angular Material"]
+    SVC["Services HTTP + Guards<br/>auth.interceptor (JWT)"]
+  end
+  subgraph API["Couche API REST — Spring Boot 4"]
+    SEC["Spring Security<br/>JwtAuthenticationFilter"]
+    CTRL["Controllers REST<br/>Auth, Candidature, Convention,<br/>Rapport, Attestation, Remuneration..."]
+  end
+  subgraph Metier["Couche Metier — Services"]
+    SERV["Services @Transactional<br/>regles de gestion"]
+    NOTIF["NotificationService"]
+    SCHED["Schedulers @Scheduled<br/>rappels / purge archives"]
+  end
+  subgraph Integ["Integrations"]
+    OLL["OllamaService<br/>LLM llama3.2:3b (local)"]
+    OCR["Tesseract OCR<br/>verification documents"]
+    PDF["iText 7<br/>convocation / attestation"]
+    MAIL["JavaMail<br/>e-mails"]
+  end
+  subgraph Persist["Couche Persistance"]
+    REPO["Spring Data JPA<br/>Repositories"]
+    DB[("PostgreSQL")]
+  end
+  UI --> SVC --> SEC --> CTRL --> SERV
+  SERV --> REPO --> DB
+  NOTIF --> REPO
+  SERV --> NOTIF
+  SCHED --> SERV
+  SERV --> OLL
+  SERV --> OCR
+  SERV --> PDF
+  SERV --> MAIL

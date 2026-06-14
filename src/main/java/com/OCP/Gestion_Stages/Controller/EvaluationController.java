@@ -7,6 +7,8 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -54,5 +56,19 @@ public class EvaluationController {
     @PreAuthorize("hasAnyRole('ADMIN_RH','RESPONSABLE_RH','ENCADRANT')")
     public ResponseEntity<List<EvaluationResponse>> getByStage(@PathVariable Long stageId) {
         return ResponseEntity.ok(evaluationService.findByStage(stageId));
+    }
+
+    @GetMapping("/mes-evaluations")
+    @PreAuthorize("hasRole('STAGIAIRE')")
+    public ResponseEntity<List<EvaluationResponse>> getMesEvaluationsStagiaire(
+            @AuthenticationPrincipal UserDetails userDetails) {
+        return ResponseEntity.ok(evaluationService.getMesEvaluationsStagiaire(userDetails.getUsername()));
+    }
+
+    @GetMapping("/encadrant/mes-evaluations")
+    @PreAuthorize("hasRole('ENCADRANT')")
+    public ResponseEntity<List<EvaluationResponse>> getMesEvaluationsEncadrant(
+            @AuthenticationPrincipal UserDetails userDetails) {
+        return ResponseEntity.ok(evaluationService.getMesEvaluationsEncadrant(userDetails.getUsername()));
     }
 }

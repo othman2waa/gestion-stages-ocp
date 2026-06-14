@@ -22,6 +22,18 @@ spring:
     baseline-on-migrate: true
     locations: classpath:db/migration
 
+  mail:
+    host: sandbox.smtp.mailtrap.io
+    port: 2525
+    username: 4485cc7271203b
+    password: 091fe02078ba02
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+
 server:
   port: 8080
 
@@ -35,3 +47,22 @@ application:
     jwt:
       secret-key: 404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970
       expiration: 86400000
+
+app:
+  storage:
+    # Dossier racine où sont écrits les fichiers uploadés (CV, documents).
+    path: ./uploads
+  retention:
+    # Durée de conservation des archives (en années) avant anonymisation/purge.
+    years: 1
+  ollama:
+    url: http://localhost:11434/api/generate
+    model: llama3.2:3b
+    embed-model: nomic-embed-text   # modèle d'embeddings (matching sémantique)
+    timeout-seconds: 120     # le LLM local peut être lent sur CPU
+    temperature: 0.2         # bas = scores déterministes
+    keep-alive: 30m          # garde le modèle chargé en mémoire (évite le rechargement à froid)
+    num-ctx: 2048            # fenêtre de contexte réduite = traitement plus rapide
+  ocr:
+    tessdata-path: /usr/local/share/tessdata   # données Tesseract (brew)
+    languages: fra+eng                          # langues OCR

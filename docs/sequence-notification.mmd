@@ -1,0 +1,20 @@
+%%{init: {'theme':'base','themeVariables':{'primaryColor':'#e8f5ee','primaryBorderColor':'#2e7d52','primaryTextColor':'#1a3c2e','lineColor':'#5a7d6c','actorBkg':'#e8f5ee','actorBorder':'#2e7d52','fontSize':'14px'}}}%%
+sequenceDiagram
+    participant SRC as Service metier
+    participant NS as NotificationService
+    participant DB as PostgreSQL
+    participant NG as Angular (sidebar)
+    actor U as Utilisateur cible
+
+    Note over SRC: un evenement se produit<br/>(candidature recue, rapport valide...)
+    SRC->>NS: notifierXxx(userId, titre, message)
+    NS->>DB: insert notification (lu=false, userId)
+
+    loop toutes les 60 s
+        NG->>DB: GET /api/notifications/non-lues
+        DB-->>NG: liste + compteur
+    end
+    NG-->>U: badge cloche + espace /notifications
+
+    U->>NG: marque comme lue
+    NG->>DB: PATCH /api/notifications/{id}/lue

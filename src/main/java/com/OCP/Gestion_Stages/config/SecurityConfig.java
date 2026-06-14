@@ -1,6 +1,5 @@
 package com.OCP.Gestion_Stages.config;
 
-import com.OCP.Gestion_Stages.config.JwtAuthenticationFilter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -15,7 +14,7 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
-
+import org.springframework.http.HttpMethod;
 import java.util.List;
 
 @Configuration
@@ -33,18 +32,14 @@ public class SecurityConfig {
                 .csrf(AbstractHttpConfigurer::disable)
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .authorizeHttpRequests(auth -> auth
-                        // ✅ Routes publiques — TOUJOURS en premier
-                        .requestMatchers(
-                                "/api/auth/**",
-                                "/swagger-ui/**",
-                                "/swagger-ui.html",
-                                "/v3/api-docs/**",
-                                "/v3/api-docs.yaml"
-                        ).permitAll()
-                        // ✅ Routes par rôle
+                        .requestMatchers("/api/auth/**").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/candidatures").permitAll()
+                        .requestMatchers(HttpMethod.GET,  "/api/departements/actifs").permitAll()
+                        .requestMatchers(HttpMethod.GET,  "/api/departements/*/specialites").permitAll()
+                        .requestMatchers(HttpMethod.GET,  "/api/annonces/publiques").permitAll()
+                        .requestMatchers("/swagger-ui/**", "/v3/api-docs/**").permitAll()
                         .requestMatchers("/api/admin/**").hasRole("ADMIN_RH")
                         .requestMatchers("/api/reporting/**").hasAnyRole("ADMIN_RH", "RESPONSABLE_RH")
-                        // ✅ anyRequest TOUJOURS en dernier
                         .anyRequest().authenticated()
                 )
                 .sessionManagement(session ->

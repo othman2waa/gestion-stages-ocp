@@ -64,4 +64,15 @@ public class Stage {
     protected void onUpdate() {
         updatedAt = LocalDateTime.now();
     }
+
+    @Builder.Default
+    @Column(name = "sujet_valide")
+    private Boolean sujetValide = false;
+
+    @Column(name = "sujet_propose_par")
+    private String sujetProposePar;
+
+    // Entité / service d'accueil au sein de la direction (affecté à l'acceptation)
+    @Column(name = "entite_accueil", length = 255)
+    private String entiteAccueil;
 }

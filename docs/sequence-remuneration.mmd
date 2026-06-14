@@ -1,0 +1,20 @@
+%%{init: {'theme':'base','themeVariables':{'primaryColor':'#e8f5ee','primaryBorderColor':'#2e7d52','primaryTextColor':'#1a3c2e','lineColor':'#5a7d6c','actorBkg':'#e8f5ee','actorBorder':'#2e7d52','fontSize':'14px'}}}%%
+sequenceDiagram
+    actor R as Agent RH
+    participant NG as Angular (page Remuneration)
+    participant RC as RemunerationController
+    participant RS as RemunerationService
+    participant DB as PostgreSQL
+
+    Note over R: debut juillet / septembre
+    R->>NG: choisit Tranche + Annee
+    NG->>RC: GET /api/remuneration/eligibles?annee&tranche
+    RC->>RS: genererListe(annee, tranche)
+    RS->>RS: calcule la fenetre de la tranche
+    RS->>DB: attestations APPROUVEE
+    RS->>RS: filtre PFE + Bac+5 + date_fin dans la fenetre<br/>+ calcule la duree (mois)
+    RS->>RS: regroupe par departement
+    RS-->>NG: {libelle, fenetre, total, parDepartement}
+
+    R->>NG: filtre un departement -> Export Excel
+    NG-->>R: fichier .xlsx (liste a envoyer au departement)

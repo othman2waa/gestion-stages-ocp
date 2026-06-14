@@ -1,0 +1,76 @@
+%%{init: {'theme':'base','themeVariables':{'primaryColor':'#e8f5ee','primaryBorderColor':'#2e7d52','primaryTextColor':'#1a3c2e','lineColor':'#5a7d6c','fontSize':'13px'}}}%%
+classDiagram
+  class User {
+    +Long id
+    +String username
+    +String password
+    +UserRole role
+    +Boolean actif
+  }
+  class Stagiaire {
+    +Long id
+    +String nom
+    +String prenom
+    +String email
+    +String cin
+    +String filiere
+    +String niveau
+  }
+  class Encadrant {
+    +Long id
+    +String nom
+    +String prenom
+    +String fonction
+  }
+  class Departement {
+    +Long id
+    +String code
+    +String nom
+    +Boolean actif
+  }
+  class Stage {
+    +Long id
+    +String sujet
+    +TypeStage typeStage
+    +StageStatus statut
+    +LocalDate dateDebut
+    +LocalDate dateFin
+    +String entiteAccueil
+  }
+  class Convention {
+    +Long id
+    +String numero
+    +ConventionStatus statut
+  }
+  class RapportStage {
+    +Long id
+    +String statut
+    +String commentaireValidation
+  }
+  class AttestationStage {
+    +Long id
+    +String statut
+    +String numeroAttestation
+  }
+  class Evaluation {
+    +Long id
+    +BigDecimal note
+    +TypeEvaluation typeEval
+  }
+  class Candidature {
+    +Long id
+    +String statut
+    +Integer scoreMatching
+  }
+  User "1" -- "0..1" Stagiaire : compte
+  User "1" -- "0..1" Encadrant : compte
+  Departement "1" o-- "*" Stagiaire
+  Departement "1" o-- "*" Encadrant
+  Departement "1" o-- "*" Stage
+  Stagiaire "1" --> "*" Stage
+  Encadrant "1" --> "*" Stage
+  Stage "1" --> "0..1" Convention
+  Stage "1" --> "0..1" RapportStage
+  Stage "1" --> "0..1" AttestationStage
+  Stage "1" --> "*" Evaluation
+  Candidature ..> Stage : génère

@@ -1,0 +1,18 @@
+%%{init: {'theme':'base','themeVariables':{'primaryColor':'#e8f5ee','primaryBorderColor':'#2e7d52','primaryTextColor':'#1a3c2e','lineColor':'#5a7d6c','actorBkg':'#e8f5ee','actorBorder':'#2e7d52','fontSize':'14px'}}}%%
+sequenceDiagram
+    actor U as Utilisateur
+    participant NG as Angular (widget chat)
+    participant CC as ChatbotController
+    participant CS as ChatbotService
+    participant OL as OllamaService
+    participant DB as PostgreSQL
+
+    U->>NG: pose une question
+    NG->>CC: POST /api/chatbot {message}
+    CC->>CS: repondre(message, user)
+    CS->>DB: contexte (role, donnees autorisees)
+    CS->>OL: prompt + contexte
+    Note over OL: llama3.2:3b (local)
+    OL-->>CS: reponse en langage naturel
+    CS-->>NG: 200 {reponse}
+    NG-->>U: affiche la reponse
