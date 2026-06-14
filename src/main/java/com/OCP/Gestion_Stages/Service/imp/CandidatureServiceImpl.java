@@ -57,6 +57,44 @@ public class CandidatureServiceImpl implements CandidatureService, CandidatureSe
 
     private static final java.util.List<String> REQUIRED_DOCS = java.util.List.of("CV", "CIN", "PHOTO", "DIPLOME");
 
+    /** Renvoie l'établissement portant ce nom, en le créant à la volée s'il n'existe pas (find-or-create). */
+    private com.OCP.Gestion_Stages.domain.model.Etablissement resoudreEtablissement(String nom) {
+        if (nom == null || nom.isBlank()) return null;
+        String n = nom.trim();
+        return etablissementRepository.findByNomContainingIgnoreCase(n).stream().findFirst()
+                .orElseGet(() -> {
+                    com.OCP.Gestion_Stages.domain.model.Etablissement e =
+                            new com.OCP.Gestion_Stages.domain.model.Etablissement();
+                    e.setNom(n);
+                    return etablissementRepository.save(e);
+                });
+    }
+
+    /**
+     * Backfill (une fois, idempotent) : lie les stagiaires existants sans établissement à
+     * l'établissement de leur candidature (créé au besoin). Alimente les statistiques « par école ».
+     */
+    @org.springframework.context.event.EventListener(org.springframework.boot.context.event.ApplicationReadyEvent.class)
+    @org.springframework.transaction.annotation.Transactional
+    public void backfillEtablissements() {
+        try {
+            int n = 0;
+            for (Candidature c : candidatureRepository.findAll()) {
+                if (c.getEmail() == null || c.getEtablissement() == null || c.getEtablissement().isBlank()) continue;
+                var sopt = stagiaireRepository.findByEmail(c.getEmail());
+                if (sopt.isPresent() && sopt.get().getEtablissement() == null) {
+                    Stagiaire s = sopt.get();
+                    s.setEtablissement(resoudreEtablissement(c.getEtablissement()));
+                    stagiaireRepository.save(s);
+                    n++;
+                }
+            }
+            if (n > 0) log.info("Backfill établissements : {} stagiaire(s) lié(s) à leur école.", n);
+        } catch (Exception e) {
+            log.warn("Backfill établissements ignoré : {}", e.getMessage());
+        }
+    }
+
     @Override
     public CandidatureResponse soumettre(CandidatureRequest request, MultipartFile cv) throws IOException {
         Candidature c = new Candidature();
@@ -195,11 +233,8 @@ public class CandidatureServiceImpl implements CandidatureService, CandidatureSe
             departementRepository.findById(request.getDepartementId())
                     .ifPresent(stagiaire::setDepartement);
 
-        // Chercher établissement
-        if (c.getEtablissement() != null && !c.getEtablissement().isEmpty()) {
-            etablissementRepository.findByNomContainingIgnoreCase(c.getEtablissement()).stream().findFirst()
-                    .ifPresent(stagiaire::setEtablissement);
-        }
+        // Établissement : lié s'il existe, sinon créé à la volée (find-or-create)
+        stagiaire.setEtablissement(resoudreEtablissement(c.getEtablissement()));
 
         stagiaireRepository.save(stagiaire);
 
@@ -622,10 +657,7 @@ public class CandidatureServiceImpl implements CandidatureService, CandidatureSe
                 stagiaire.setUser(savedUser);
                 if (c.getDepartement() != null)
                     stagiaire.setDepartement(c.getDepartement());
-                if (c.getEtablissement() != null && !c.getEtablissement().isEmpty()) {
-                    etablissementRepository.findByNomContainingIgnoreCase(c.getEtablissement())
-                            .stream().findFirst().ifPresent(stagiaire::setEtablissement);
-                }
+                stagiaire.setEtablissement(resoudreEtablissement(c.getEtablissement()));
                 stagiaire = stagiaireRepository.save(stagiaire);
             } else {
                 stagiaire = stagiaireRepository.findByEmail(c.getEmail()).orElse(null);

@@ -125,6 +125,9 @@ public class ReportingController {
         stats.put("stagesParDepartement", stageRepository.countByDepartement());
         stats.put("stagesParType",        stageRepository.countByTypeStage());
 
+        // Stagiaires par école / établissement d'origine
+        stats.put("stagiairesParEcole",   stagiaireRepository.countByEtablissement());
+
         return ResponseEntity.ok(stats);
     }
 

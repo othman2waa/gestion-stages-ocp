@@ -4,6 +4,8 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.context.event.ApplicationReadyEvent;
+import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Service;
 
 import java.net.URI;
@@ -31,11 +33,20 @@ public class OllamaService {
     private double temperature;
     @Value("${app.ollama.embed-model:nomic-embed-text}")
     private String embedModel;
+    // Garde le modèle chargé en mémoire entre les appels (évite le rechargement à froid de plusieurs secondes).
+    @Value("${app.ollama.keep-alive:30m}")
+    private String keepAlive;
+    // Fenêtre de contexte : plus petite = traitement du prompt plus rapide.
+    @Value("${app.ollama.num-ctx:2048}")
+    private int numCtx;
 
     // Connexion bornée : si Ollama est down, on échoue vite au lieu de bloquer le thread.
     private final HttpClient httpClient = HttpClient.newBuilder()
             .connectTimeout(Duration.ofSeconds(5))
             .build();
+
+    // Mémoire conversationnelle : état tokenisé Ollama (« context ») par session/utilisateur.
+    private final java.util.Map<String, int[]> conversations = new java.util.concurrent.ConcurrentHashMap<>();
 
     // ════════════════════════════════════════════════════════════
     //  Appel central — JSON forcé, température basse, timeout
@@ -46,18 +57,57 @@ public class OllamaService {
      * (option native d'Ollama) → parsing fiable. Température basse = scores déterministes.
      */
     private String callOllama(String prompt, boolean jsonFormat) throws Exception {
-        return callOllama(prompt, jsonFormat, 800);
+        return callOllama(prompt, jsonFormat, 512);
+    }
+
+    /**
+     * Préchauffe le modèle au démarrage de l'application : une génération minimale charge le modèle
+     * en mémoire (combiné à {@code keep_alive}, il y reste). Le premier appel utilisateur est ainsi
+     * rapide. Exécuté dans un thread démon pour ne pas retarder le démarrage.
+     */
+    @EventListener(ApplicationReadyEvent.class)
+    public void prechaufferModele() {
+        Thread t = new Thread(() -> {
+            try {
+                callOllama("Bonjour", false, 1);
+                log.info("Modèle IA préchargé en mémoire (keep_alive={}).", keepAlive);
+            } catch (Exception e) {
+                log.warn("Préchauffage IA ignoré (Ollama indisponible ?) : {}", e.getMessage());
+            }
+        }, "ollama-warmup");
+        t.setDaemon(true);
+        t.start();
     }
 
     /** Variante avec contrôle de la longueur de sortie (num_predict) pour accélérer les appels courts. */
     private String callOllama(String prompt, boolean jsonFormat, int numPredict) throws Exception {
+        return callOllamaRaw(prompt, jsonFormat, numPredict, null).path("response").asText("");
+    }
+
+    /**
+     * Appel bas niveau : renvoie le nœud JSON complet (pour lire {@code response} ET {@code context}).
+     * {@code priorContext} (état tokenisé d'un échange précédent) permet à Ollama de
+     * \emph{continuer} la conversation sans réévaluer tout le prompt — mémoire + rapidité.
+     */
+    private JsonNode callOllamaRaw(String prompt, boolean jsonFormat, int numPredict, int[] priorContext)
+            throws Exception {
         Map<String, Object> body = new HashMap<>();
         body.put("model", model);
         body.put("prompt", prompt);
         body.put("stream", false);
-        body.put("options", Map.of("temperature", temperature, "num_predict", numPredict));
+        Map<String, Object> options = new HashMap<>();
+        options.put("temperature", temperature);
+        options.put("num_predict", numPredict); // borne la longueur de génération (latence CPU)
+        options.put("num_ctx", numCtx);
+        options.put("top_k", 40);
+        options.put("top_p", 0.9);
+        body.put("options", options);
+        body.put("keep_alive", keepAlive); // conserve le modèle en mémoire entre les requêtes
         if (jsonFormat) {
             body.put("format", "json");
+        }
+        if (priorContext != null && priorContext.length > 0) {
+            body.put("context", priorContext); // continuation : pas de réévaluation du prompt initial
         }
 
         HttpRequest request = HttpRequest.newBuilder()
@@ -71,7 +121,7 @@ public class OllamaService {
         if (response.statusCode() != 200) {
             throw new RuntimeException("Ollama a répondu HTTP " + response.statusCode());
         }
-        return objectMapper.readTree(response.body()).path("response").asText("");
+        return objectMapper.readTree(response.body());
     }
 
     /** Vérifie rapidement si le service Ollama est joignable (pour les UI). */
@@ -447,12 +497,62 @@ public class OllamaService {
             Question de l'utilisateur : %s
             """.formatted(contexte, question);
         try {
-            String r = callOllama(prompt, false, 400);
+            String r = callOllama(prompt, false, 220);
             return (r == null || r.isBlank()) ? "Je n'ai pas pu générer de réponse." : r.trim();
         } catch (Exception e) {
             log.warn("Erreur assistant RH: {}", e.getMessage());
             return "Le service IA est indisponible pour le moment.";
         }
+    }
+
+    /**
+     * Assistant RH avec <b>mémoire conversationnelle</b> par session. Au premier tour, le prompt
+     * complet (système + données + question) est envoyé ; aux tours suivants, seule la question est
+     * transmise avec le {@code context} mémorisé : Ollama poursuit la conversation sans réévaluer le
+     * prompt initial — d'où une réponse bien plus rapide et un assistant qui « se souvient ».
+     */
+    public String repondreAvecMemoire(String sessionKey, String contexte, String question) {
+        try {
+            int[] prior = (sessionKey != null) ? conversations.get(sessionKey) : null;
+            String prompt;
+            if (prior == null) {
+                prompt = """
+                    Tu es l'assistant RH de la plateforme de gestion des stages d'OCP Group.
+                    Voici les DONNÉES ACTUELLES de la plateforme :
+                    %s
+
+                    Réponds toujours de façon concise, claire et professionnelle, en te basant sur ces
+                    données et sur l'historique de notre échange. Si une information n'est pas disponible,
+                    dis-le simplement.
+
+                    Question : %s
+                    """.formatted(contexte, question);
+            } else {
+                prompt = "Question : " + question; // continuation : le contexte est déjà en mémoire
+            }
+
+            JsonNode node = callOllamaRaw(prompt, false, 220, prior);
+
+            // Mémorise le nouvel état de conversation
+            if (sessionKey != null) {
+                JsonNode ctx = node.path("context");
+                if (ctx.isArray() && ctx.size() > 0) {
+                    int[] arr = new int[ctx.size()];
+                    for (int i = 0; i < arr.length; i++) arr[i] = ctx.get(i).asInt();
+                    conversations.put(sessionKey, arr);
+                }
+            }
+            String r = node.path("response").asText("");
+            return (r == null || r.isBlank()) ? "Je n'ai pas pu générer de réponse." : r.trim();
+        } catch (Exception e) {
+            log.warn("Erreur assistant RH (mémoire): {}", e.getMessage());
+            return "Le service IA est indisponible pour le moment.";
+        }
+    }
+
+    /** Réinitialise la conversation d'une session (nouveau fil / rafraîchir les données). */
+    public void reinitialiserConversation(String sessionKey) {
+        if (sessionKey != null) conversations.remove(sessionKey);
     }
 
     /**

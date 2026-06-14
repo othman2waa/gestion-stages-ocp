@@ -26,6 +26,12 @@ public interface StagiaireRepository extends JpaRepository<Stagiaire, Long> {
     List<Stagiaire> searchByKeyword(String keyword);
     long countByDepartementId(Long departementId);
 
+    /** Nombre de stagiaires regroupés par école / établissement d'origine. */
+    @Query("SELECT s.etablissement.nom, COUNT(s) FROM Stagiaire s " +
+           "WHERE s.etablissement IS NOT NULL " +
+           "GROUP BY s.etablissement.nom ORDER BY COUNT(s) DESC")
+    List<Object[]> countByEtablissement();
+
     @Query(value = """
         SELECT s.* FROM stagiaire s
         LEFT JOIN departement d ON d.id = s.departement_id

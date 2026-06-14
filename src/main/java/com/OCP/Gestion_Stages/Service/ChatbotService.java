@@ -36,13 +36,14 @@ public class ChatbotService {
     private final DepartementRepository departementRepository;
     private final OllamaService ollamaService;
     private final FileStorageService fileStorageService;
+    private final com.OCP.Gestion_Stages.Service.RemunerationService remunerationService;
 
     private static final int MAX_CANDIDATS = 6; // borne les appels LLM (latence CPU)
 
     // ════════════════════════════════════════════════════════════
     //  Assistant RH : réponses et mini-rapports à partir des indicateurs
     // ════════════════════════════════════════════════════════════
-    public Map<String, Object> assistantRh(String question) {
+    public Map<String, Object> assistantRh(String sessionKey, String question) {
         Map<String, Object> result = new LinkedHashMap<>();
         Map<String, Object> stats = collecterStats();
         result.put("stats", stats);
@@ -50,10 +51,16 @@ public class ChatbotService {
             result.put("message", "Posez-moi une question sur les candidatures, les stages, la conformité… ou demandez un résumé de la situation.");
             return result;
         }
-        // Contexte = indicateurs chiffrés + liste nominative des fiches OCP non remplies
-        String contexte = formatContexte(stats) + formatFiches();
-        result.put("message", ollamaService.repondreAvecContexte(contexte, question));
+        // Contexte = indicateurs chiffrés + liste nominative des fiches OCP non remplies.
+        // Mémoire conversationnelle : ce contexte n'est réellement envoyé qu'au 1er tour de la session.
+        String contexte = formatContexte(stats) + formatFiches() + formatRemuneration();
+        result.put("message", ollamaService.repondreAvecMemoire(sessionKey, contexte, question));
         return result;
+    }
+
+    /** Démarre un nouveau fil de conversation (oublie l'historique et rafraîchit les données). */
+    public void reinitialiserConversation(String sessionKey) {
+        ollamaService.reinitialiserConversation(sessionKey);
     }
 
     private Map<String, Object> collecterStats() {
@@ -97,23 +104,54 @@ public class ChatbotService {
                 .filter(st -> st.getUser() != null).toList();
     }
 
-    /** Liste nominative des fiches OCP non remplies, injectée dans le contexte de l'assistant. */
+    /** Listes nominatives (ont rempli / n'ont pas rempli) de la fiche OCP, injectées dans le contexte. */
     private String formatFiches() {
-        List<String> sansFiche = stagiairesAvecCompte().stream()
+        List<Stagiaire> avecCompte = stagiairesAvecCompte();
+        List<String> avecFiche = avecCompte.stream()
+                .filter(st -> Boolean.TRUE.equals(st.getFicheRenseignementCompletee()))
+                .map(st -> (safe(st.getPrenom()) + " " + safe(st.getNom())).trim())
+                .filter(n -> !n.isBlank()).sorted().toList();
+        List<String> sansFiche = avecCompte.stream()
                 .filter(st -> !Boolean.TRUE.equals(st.getFicheRenseignementCompletee()))
                 .map(st -> (safe(st.getPrenom()) + " " + safe(st.getNom())).trim())
-                .filter(n -> !n.isBlank())
-                .sorted()
-                .toList();
+                .filter(n -> !n.isBlank()).sorted().toList();
+
         StringBuilder sb = new StringBuilder();
-        if (sansFiche.isEmpty()) {
-            sb.append("\nFiche de renseignement OCP : tous les stagiaires avec compte l'ont remplie.\n");
-        } else {
-            sb.append("\nStagiaires (avec compte) n'ayant PAS rempli la Fiche de renseignement OCP (")
-              .append(sansFiche.size()).append(") :\n");
-            for (String n : sansFiche) sb.append("  - ").append(n).append("\n");
-        }
+        sb.append("\nFiche de renseignement OCP (").append(avecCompte.size())
+          .append(" stagiaires avec compte) :\n");
+        sb.append("- Stagiaires AYANT rempli la fiche (").append(avecFiche.size()).append(") :\n");
+        if (avecFiche.isEmpty()) sb.append("    - aucun\n");
+        else for (String n : avecFiche) sb.append("    - ").append(n).append("\n");
+        sb.append("- Stagiaires N'AYANT PAS rempli la fiche (").append(sansFiche.size()).append(") :\n");
+        if (sansFiche.isEmpty()) sb.append("    - aucun (tous l'ont remplie)\n");
+        else for (String n : sansFiche) sb.append("    - ").append(n).append("\n");
         return sb.toString();
+    }
+
+    /** Données de rémunération PFE (tranche courante), injectées dans le contexte de l'assistant. */
+    @SuppressWarnings("unchecked")
+    private String formatRemuneration() {
+        try {
+            Map<String, Object> r = remunerationService.genererListe(null, null, null);
+            StringBuilder sb = new StringBuilder("\nRémunération des stages PFE (OCP rémunère les PFE Bac+5) — ");
+            sb.append(r.getOrDefault("libelle", "tranche courante")).append(" :\n");
+            sb.append("- nombre de stagiaires PFE Bac+5 à rémunérer : ").append(r.getOrDefault("total", 0)).append("\n");
+            Object pd = r.get("parDepartement");
+            if (pd instanceof List<?> groupes && !groupes.isEmpty()) {
+                sb.append("- répartition par département :\n");
+                for (Object g : groupes) {
+                    Map<String, Object> gm = (Map<String, Object>) g;
+                    sb.append("    - ").append(gm.get("departement")).append(" : ")
+                      .append(gm.get("total")).append("\n");
+                }
+            }
+            sb.append("(La rémunération est versée à la fin du stage, par tranches semestrielles : "
+                    + "juillet et septembre.)\n");
+            return sb.toString();
+        } catch (Exception e) {
+            log.warn("Contexte rémunération indisponible : {}", e.getMessage());
+            return "";
+        }
     }
 
     public Map<String, Object> matchCandidats(String username, String besoin) {

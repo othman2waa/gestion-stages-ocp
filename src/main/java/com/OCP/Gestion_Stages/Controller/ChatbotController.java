@@ -27,10 +27,20 @@ public class ChatbotController {
                 chatbotService.matchCandidats(userDetails.getUsername(), body.get("message")));
     }
 
-    /** Assistant RH : question en langage naturel -> réponse/rapport basé sur les indicateurs. */
+    /** Assistant RH : question en langage naturel -> réponse basée sur les indicateurs (avec mémoire). */
     @PostMapping("/rh")
     @PreAuthorize("hasAnyRole('ADMIN_RH','RESPONSABLE_RH')")
-    public ResponseEntity<Map<String, Object>> rh(@RequestBody Map<String, String> body) {
-        return ResponseEntity.ok(chatbotService.assistantRh(body.get("message")));
+    public ResponseEntity<Map<String, Object>> rh(@RequestBody Map<String, String> body,
+            @AuthenticationPrincipal UserDetails userDetails) {
+        return ResponseEntity.ok(
+                chatbotService.assistantRh(userDetails.getUsername(), body.get("message")));
+    }
+
+    /** Nouveau fil de conversation : oublie l'historique et rafraîchit les données. */
+    @PostMapping("/rh/reset")
+    @PreAuthorize("hasAnyRole('ADMIN_RH','RESPONSABLE_RH')")
+    public ResponseEntity<Void> resetRh(@AuthenticationPrincipal UserDetails userDetails) {
+        chatbotService.reinitialiserConversation(userDetails.getUsername());
+        return ResponseEntity.noContent().build();
     }
 }
