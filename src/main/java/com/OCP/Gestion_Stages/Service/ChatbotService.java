@@ -18,11 +18,19 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Chatbot de l'espace encadrant : à partir d'un besoin exprimé en langage naturel,
- * classe les candidatures du département de l'encadrant par adéquation (via le LLM).
- * Le nombre de candidatures analysées par le LLM est borné pour rester réactif sur CPU.
+ * classe les candidatures du département par adéquation, selon une architecture
+ * <b>retrieve-and-rerank</b> en deux étages :
+ * <ol>
+ *   <li><b>Retrieval sémantique</b> — tout le vivier est vectorisé (embeddings) et trié par
+ *       similarité cosinus avec le besoin. Rapide, parallélisé et mis en cache.</li>
+ *   <li><b>Reranking LLM</b> — seule la short-list des plus pertinents est jugée finement par le
+ *       LLM ({@code score} + justification), ce qui borne les appels coûteux.</li>
+ * </ol>
+ * Le score final est <b>hybride et explicable</b> : {@code W_LLM × score LLM + W_SEM × similarité}.
  */
 @Service
 @RequiredArgsConstructor
@@ -38,7 +46,15 @@ public class ChatbotService {
     private final FileStorageService fileStorageService;
     private final com.OCP.Gestion_Stages.Service.RemunerationService remunerationService;
 
-    private static final int MAX_CANDIDATS = 6; // borne les appels LLM (latence CPU)
+    private static final int SHORTLIST = 6;    // nb de candidats envoyés au LLM pour le rerank précis
+    private static final double W_LLM = 0.65;  // poids du jugement LLM dans le score final
+    private static final double W_SEM = 0.35;  // poids de la similarité sémantique (embeddings)
+
+    /** Cache d'embeddings de CV (clé = chemin/identité du CV) : un même CV n'est vectorisé qu'une fois. */
+    private final Map<String, float[]> cvEmbeddingCache = new ConcurrentHashMap<>();
+
+    /** Candidat enrichi de son profil textuel et de son score de similarité sémantique (étage 1). */
+    private record CandidatScore(Candidature candidature, String profil, double similarite) {}
 
     // ════════════════════════════════════════════════════════════
     //  Assistant RH : réponses et mini-rapports à partir des indicateurs
@@ -178,13 +194,36 @@ public class ChatbotService {
             return result;
         }
 
+        // ── Étage 1 : RETRIEVAL sémantique sur TOUT le vivier (embeddings, rapide & parallèle) ──
+        final float[] besoinVec = ollamaService.embed(besoin);
+        List<CandidatScore> classement;
+        if (besoinVec != null) {
+            classement = cands.parallelStream()
+                    .map(c -> {
+                        String profil = profilTexte(c);
+                        double sim = ollamaService.cosineSimilarity(besoinVec, embeddingCV(c, profil)); // 0..1
+                        return new CandidatScore(c, profil, sim);
+                    })
+                    .sorted((a, b) -> Double.compare(b.similarite(), a.similarite()))
+                    .toList();
+        } else {
+            // Dégradation gracieuse : embeddings indisponibles → on conserve le pré-tri SQL (score de dépôt)
+            classement = cands.stream()
+                    .map(c -> new CandidatScore(c, profilTexte(c), -1))
+                    .toList();
+        }
+        int vivierAnalyse = classement.size();
+
+        // ── Étage 2 : RERANK précis par le LLM, uniquement sur la short-list la plus pertinente ──
         List<Map<String, Object>> matches = new ArrayList<>();
-        for (Candidature c : cands.stream().limit(MAX_CANDIDATS).toList()) {
-            String cv = extraireCv(c);
-            String profil = !cv.isBlank() ? cv
-                    : String.join(" ", safe(c.getFiliere()), safe(c.getNiveau()),
-                            safe(c.getSpecialite()), safe(c.getSujetSouhaite()));
-            Map<String, Object> ia = ollamaService.matchBesoin(profil, besoin);
+        for (CandidatScore cs : classement.stream().limit(SHORTLIST).toList()) {
+            Candidature c = cs.candidature();
+            Map<String, Object> ia = ollamaService.matchBesoin(cs.profil(), besoin);
+            int scoreLlm = ((Number) ia.getOrDefault("score", 0)).intValue();
+            int scoreSem = cs.similarite() >= 0 ? (int) Math.round(cs.similarite() * 100) : scoreLlm;
+            int scoreFinal = cs.similarite() >= 0
+                    ? (int) Math.round(W_LLM * scoreLlm + W_SEM * scoreSem)
+                    : scoreLlm;
 
             Map<String, Object> m = new LinkedHashMap<>();
             m.put("candidatureId", c.getId());
@@ -192,17 +231,54 @@ public class ChatbotService {
             m.put("prenom", c.getPrenom());
             m.put("filiere", c.getFiliere());
             m.put("niveau", c.getNiveau());
-            m.put("score", ia.get("score"));
+            m.put("score", scoreFinal);          // score hybride explicable
+            m.put("scoreLLM", scoreLlm);          // jugement du LLM (0-100)
+            m.put("scoreSemantique", scoreSem);   // similarité embeddings (0-100)
             m.put("justification", ia.get("justification"));
             matches.add(m);
         }
         matches.sort((a, b) -> ((Number) b.get("score")).intValue() - ((Number) a.get("score")).intValue());
 
         result.put("count", matches.size());
+        result.put("vivierAnalyse", vivierAnalyse);
+        result.put("methode", besoinVec != null
+                ? "retrieval sémantique (embeddings) + rerank LLM"
+                : "rerank LLM (embeddings indisponibles)");
         result.put("candidats", matches);
-        result.put("message", "J'ai analysé " + matches.size()
-                + " candidature(s) de votre département. Voici les profils classés par adéquation à votre besoin.");
+        result.put("message", besoinVec != null
+                ? "J'ai comparé sémantiquement " + vivierAnalyse + " candidature(s) de votre département, "
+                  + "puis analysé en détail les " + matches.size()
+                  + " plus pertinentes — classées par adéquation à votre besoin."
+                : "J'ai analysé " + matches.size()
+                  + " candidature(s) de votre département, classées par adéquation à votre besoin.");
         return result;
+    }
+
+    /**
+     * Profil textuel d'un candidat : texte du CV <b>pré-calculé à l'ingestion</b> si disponible,
+     * sinon extraction live (PDFBox), sinon ses champs structurés.
+     */
+    private String profilTexte(Candidature c) {
+        String txt = (c.getCvTexte() != null && !c.getCvTexte().isBlank()) ? c.getCvTexte() : extraireCv(c);
+        return !txt.isBlank() ? txt
+                : String.join(" ", safe(c.getFiliere()), safe(c.getNiveau()),
+                        safe(c.getSpecialite()), safe(c.getSujetSouhaite()));
+    }
+
+    /**
+     * Embedding du CV. Cas nominal : on lit le vecteur <b>pré-calculé et persisté</b> à l'ingestion
+     * (lecture instantanée, aucun appel Ollama). Repli pour une candidature antérieure non indexée :
+     * calcul live, mémorisé dans un cache de session.
+     */
+    private float[] embeddingCV(Candidature c, String profil) {
+        float[] stored = ollamaService.embeddingFromJson(c.getCvEmbedding());
+        if (stored != null) return stored;
+        String cle = c.getCvChemin() != null ? c.getCvChemin() : ("cand-" + c.getId());
+        float[] cached = cvEmbeddingCache.get(cle);
+        if (cached != null) return cached;
+        float[] v = ollamaService.embed(profil);
+        if (v != null) cvEmbeddingCache.put(cle, v);
+        return v;
     }
 
     private String extraireCv(Candidature c) {

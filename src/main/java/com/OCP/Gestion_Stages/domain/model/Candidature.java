@@ -66,6 +66,16 @@ public class Candidature {
     @Column(name = "cv_chemin", length = 500)
     private String cvChemin;
 
+    // ── Précalcul IA du CV (fait en tâche de fond au dépôt → recherche encadrant quasi instantanée) ──
+    @Column(name = "cv_texte", columnDefinition = "TEXT")
+    private String cvTexte;            // texte du CV extrait (PDFBox/OCR)
+
+    @Column(name = "cv_embedding", columnDefinition = "TEXT")
+    private String cvEmbedding;        // vecteur d'embedding du CV, sérialisé en JSON
+
+    @Column(name = "cv_traite")
+    private Boolean cvTraite = false;  // le traitement IA de fond a-t-il été effectué ?
+
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
 

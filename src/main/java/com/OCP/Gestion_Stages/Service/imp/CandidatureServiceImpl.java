@@ -1,6 +1,7 @@
 package com.OCP.Gestion_Stages.Service.imp;
 
 import com.OCP.Gestion_Stages.Repository.*;
+import com.OCP.Gestion_Stages.Service.CvIndexingService;
 import com.OCP.Gestion_Stages.Service.DocumentVerificationService;
 import com.OCP.Gestion_Stages.Service.EmailService;
 import com.OCP.Gestion_Stages.Service.FileStorageService;
@@ -54,6 +55,7 @@ public class CandidatureServiceImpl implements CandidatureService, CandidatureSe
     private final FileStorageService fileStorageService;
     private final com.OCP.Gestion_Stages.Service.interfaces.NotificationService notificationService;
     private final DocumentVerificationService documentVerificationService;
+    private final CvIndexingService cvIndexingService;
 
     private static final java.util.List<String> REQUIRED_DOCS = java.util.List.of("CV", "CIN", "PHOTO", "DIPLOME");
 
@@ -170,6 +172,12 @@ public class CandidatureServiceImpl implements CandidatureService, CandidatureSe
             c.setCvNomFichier(cv.getOriginalFilename());
         }
         Candidature saved = candidatureRepository.save(c);
+        // Indexation IA du CV EN TÂCHE DE FOND (texte + embedding), déclenchée APRÈS le commit :
+        // ne bloque pas la réponse au candidat et rend la recherche sémantique de l'encadrant
+        // quasi instantanée (le traitement lourd est déjà fait au moment de la recherche).
+        if (saved.getCvChemin() != null || saved.getCvContenu() != null) {
+            applicationContext.publishEvent(new CvIndexingService.CandidatureCreatedEvent(saved.getId()));
+        }
         // Notifier RH
         notifierRhNouvelleCandidature(saved);
         return toResponse(saved);

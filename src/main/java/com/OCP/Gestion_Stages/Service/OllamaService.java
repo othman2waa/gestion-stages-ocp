@@ -612,6 +612,28 @@ public class OllamaService {
         }
     }
 
+    /** Sérialise un vecteur d'embedding en JSON (pour persistance). Renvoie null si vecteur absent. */
+    public String embeddingToJson(float[] v) {
+        if (v == null) return null;
+        try {
+            return objectMapper.writeValueAsString(v);
+        } catch (Exception e) {
+            log.warn("Sérialisation embedding échouée: {}", e.getMessage());
+            return null;
+        }
+    }
+
+    /** Désérialise un vecteur d'embedding depuis le JSON persisté. Renvoie null si invalide. */
+    public float[] embeddingFromJson(String json) {
+        if (json == null || json.isBlank()) return null;
+        try {
+            return objectMapper.readValue(json, float[].class);
+        } catch (Exception e) {
+            log.warn("Désérialisation embedding échouée: {}", e.getMessage());
+            return null;
+        }
+    }
+
     /** Similarité cosinus entre deux vecteurs (0 à 1). */
     public double cosineSimilarity(float[] a, float[] b) {
         if (a == null || b == null || a.length != b.length) return 0;

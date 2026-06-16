@@ -1,6 +1,7 @@
 package com.OCP.Gestion_Stages.Controller;
 
 import com.OCP.Gestion_Stages.Repository.DepartementRepository;
+import com.OCP.Gestion_Stages.Service.CvIndexingService;
 import com.OCP.Gestion_Stages.Service.DocumentVerificationService;
 import com.OCP.Gestion_Stages.Service.FileStorageService;
 import com.OCP.Gestion_Stages.Service.OllamaService;
@@ -45,6 +46,7 @@ public class CandidatureController {
     private final OllamaService ollamaService;
     private final FileStorageService fileStorageService;
     private final DocumentVerificationService documentVerificationService;
+    private final CvIndexingService cvIndexingService;
 
     // ════════════════════════════════════════
     // PUBLIC — Soumettre candidature
@@ -88,6 +90,20 @@ public class CandidatureController {
     @PreAuthorize("hasAnyRole('ADMIN_RH','RESPONSABLE_RH')")
     public ResponseEntity<List<CandidatureResponse>> getByStatut(@PathVariable String statut) {
         return ResponseEntity.ok(candidatureService.findByStatut(statut));
+    }
+
+    /**
+     * Réindexe (texte + embedding) en tâche de fond les candidatures ayant un CV mais pas encore
+     * traitées — utile pour les candidatures antérieures à l'ajout du précalcul IA.
+     */
+    @PostMapping("/reindex-cv")
+    @PreAuthorize("hasAnyRole('ADMIN_RH','RESPONSABLE_RH')")
+    public ResponseEntity<Map<String, Object>> reindexerCv() {
+        long aTraiter = cvIndexingService.compterNonIndexees();
+        cvIndexingService.backfillAsync();
+        return ResponseEntity.ok(Map.of(
+                "aTraiter", aTraiter,
+                "message", "Réindexation des CV lancée en arrière-plan (" + aTraiter + " candidature(s))."));
     }
 
     @GetMapping("/{id}")
