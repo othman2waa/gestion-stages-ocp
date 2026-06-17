@@ -7,12 +7,15 @@ import com.OCP.Gestion_Stages.Repository.StageRepository;
 import com.OCP.Gestion_Stages.Repository.StagiaireRepository;
 import com.OCP.Gestion_Stages.domain.enums.StageStatus;
 import com.OCP.Gestion_Stages.domain.model.Candidature;
+import com.OCP.Gestion_Stages.domain.model.Departement;
+import com.OCP.Gestion_Stages.domain.model.Stage;
 import com.OCP.Gestion_Stages.domain.model.Encadrant;
 import com.OCP.Gestion_Stages.domain.model.Stagiaire;
 import com.OCP.Gestion_Stages.exeptions.ResourceNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -59,19 +62,40 @@ public class ChatbotService {
     // ════════════════════════════════════════════════════════════
     //  Assistant RH : réponses et mini-rapports à partir des indicateurs
     // ════════════════════════════════════════════════════════════
+    @Transactional(readOnly = true) // session ouverte pour charger les associations (OSIV désactivé)
     public Map<String, Object> assistantRh(String sessionKey, String question) {
         Map<String, Object> result = new LinkedHashMap<>();
         Map<String, Object> stats = collecterStats();
         result.put("stats", stats);
         if (question == null || question.isBlank()) {
-            result.put("message", "Posez-moi une question sur les candidatures, les stages, la conformité… ou demandez un résumé de la situation.");
+            result.put("message", "Posez-moi une question sur les candidatures, les stages, les stagiaires, "
+                    + "les encadrants, les départements, les fiches OCP ou la rémunération.");
             return result;
         }
-        // Contexte = indicateurs chiffrés + liste nominative des fiches OCP non remplies.
-        // Mémoire conversationnelle : ce contexte n'est réellement envoyé qu'au 1er tour de la session.
-        String contexte = formatContexte(stats) + formatFiches() + formatRemuneration();
-        result.put("message", ollamaService.repondreAvecMemoire(sessionKey, contexte, question));
+        // Contexte SÉLECTIF : on n'injecte que les jeux de données visés par la question
+        // (RAG ciblé → contexte court → réponse rapide sur CPU). Chaque tour est autonome.
+        String contexte = construireContexteSelectif(question.toLowerCase(), stats);
+        result.put("message", ollamaService.repondreAvecContexte(contexte, question));
         return result;
+    }
+
+    /**
+     * Construit un contexte ciblé selon les mots-clés de la question : les compteurs globaux sont
+     * toujours présents (légers), et seules les listes nominatives pertinentes sont ajoutées. À défaut
+     * de mot-clé reconnu, on fournit les candidatures (le sujet le plus fréquent).
+     */
+    private String construireContexteSelectif(String q, Map<String, Object> stats) {
+        StringBuilder ctx = new StringBuilder(formatContexte(stats));
+        boolean any = false;
+        if (q.contains("candidat"))                          { ctx.append(formatCandidatures()); any = true; }
+        if (q.contains("stagiaire"))                         { ctx.append(formatStagiaires());   any = true; }
+        if (q.contains("stage") || q.contains("convention")) { ctx.append(formatStages());       any = true; }
+        if (q.contains("encadr"))                            { ctx.append(formatEncadrants());   any = true; }
+        if (q.contains("départe") || q.contains("departe") || q.contains("dept")) { ctx.append(formatDepartements()); any = true; }
+        if (q.contains("fiche"))                             { ctx.append(formatFiches());       any = true; }
+        if (q.contains("rémunér") || q.contains("remuner") || q.contains("paie") || q.contains("indemn")) { ctx.append(formatRemuneration()); any = true; }
+        if (!any) ctx.append(formatCandidatures());
+        return ctx.toString();
     }
 
     /** Démarre un nouveau fil de conversation (oublie l'historique et rafraîchit les données). */
@@ -111,6 +135,122 @@ public class ChatbotService {
     private String formatContexte(Map<String, Object> stats) {
         StringBuilder sb = new StringBuilder();
         stats.forEach((k, v) -> sb.append("- ").append(k.replace('_', ' ')).append(" : ").append(v).append("\n"));
+        return sb.toString();
+    }
+
+    /** Liste nominative des candidatures (pour répondre aux demandes de détail), bornée pour rester concise. */
+    private String formatCandidatures() {
+        List<Candidature> cands = candidatureRepository.findAllByOrderByCreatedAtDesc();
+        if (cands.isEmpty()) return "";
+        final int CAP = 60;
+        StringBuilder sb = new StringBuilder("\nListe des candidatures (" + cands.size()
+                + " au total) — prénom nom | filière | niveau | département | statut | score IA :\n");
+        int i = 0;
+        for (Candidature c : cands) {
+            if (i++ >= CAP) { sb.append("    ... (").append(cands.size() - CAP).append(" autres non listées)\n"); break; }
+            String dep = c.getDepartement() != null ? c.getDepartement().getNom() : safe(c.getDepartementSouhaite());
+            sb.append("- ").append(safe(c.getPrenom())).append(" ").append(safe(c.getNom()))
+              .append(" | ").append(safe(c.getFiliere()))
+              .append(" | ").append(safe(c.getNiveau()))
+              .append(" | ").append(dep.isBlank() ? "—" : dep)
+              .append(" | ").append(labelStatut(c.getStatut()))
+              .append(c.getScoreMatching() != null ? " | score " + c.getScoreMatching() : "")
+              .append("\n");
+        }
+        return sb.toString();
+    }
+
+    /** Traduit le statut technique d'une candidature en libellé lisible pour l'assistant. */
+    private String labelStatut(String statut) {
+        if (statut == null) return "—";
+        return switch (statut) {
+            case "EN_ATTENTE" -> "en attente";
+            case "MEETING_PLANIFIE" -> "entretien planifié";
+            case "ACCEPTEE_ENCADRANT" -> "acceptée par l'encadrant";
+            case "DOCUMENTS_SOUMIS" -> "documents soumis";
+            case "ACCEPTEE_RH" -> "validée RH";
+            case "REFUSEE_RH", "REFUSEE_ENCADRANT" -> "refusée";
+            default -> statut.toLowerCase().replace('_', ' ');
+        };
+    }
+
+    /** Liste des stages (stagiaire, sujet, encadrant, période, statut), bornée. */
+    private String formatStages() {
+        List<Stage> stages = stageRepository.findAll();
+        if (stages.isEmpty()) return "";
+        final int CAP = 50;
+        StringBuilder sb = new StringBuilder("\nListe des stages (" + stages.size()
+                + ") — stagiaire | type | sujet | encadrant | département | période | statut :\n");
+        int i = 0;
+        for (Stage s : stages) {
+            if (i++ >= CAP) { sb.append("    ... (").append(stages.size() - CAP).append(" autres)\n"); break; }
+            String stag = s.getStagiaire() != null ? safe(s.getStagiaire().getPrenom()) + " " + safe(s.getStagiaire().getNom()) : "—";
+            String enc = s.getEncadrant() != null ? safe(s.getEncadrant().getPrenom()) + " " + safe(s.getEncadrant().getNom()) : "non affecté";
+            String dep = s.getDepartement() != null ? safe(s.getDepartement().getNom()) : "—";
+            String per = (s.getDateDebut() != null ? s.getDateDebut().toString() : "?") + " au " + (s.getDateFin() != null ? s.getDateFin().toString() : "?");
+            sb.append("- ").append(stag)
+              .append(" | ").append(s.getTypeStage() != null ? s.getTypeStage().toString() : "—")
+              .append(" | ").append(safe(s.getSujet()))
+              .append(" | ").append(enc)
+              .append(" | ").append(dep)
+              .append(" | ").append(per)
+              .append(" | ").append(s.getStatut() != null ? s.getStatut().toString() : "—")
+              .append("\n");
+        }
+        return sb.toString();
+    }
+
+    /** Liste des stagiaires (filière, niveau, département, email), bornée. */
+    private String formatStagiaires() {
+        List<Stagiaire> list = stagiaireRepository.findAll();
+        if (list.isEmpty()) return "";
+        final int CAP = 50;
+        StringBuilder sb = new StringBuilder("\nListe des stagiaires (" + list.size()
+                + ") — prénom nom | filière | niveau | département | email :\n");
+        int i = 0;
+        for (Stagiaire st : list) {
+            if (i++ >= CAP) { sb.append("    ... (").append(list.size() - CAP).append(" autres)\n"); break; }
+            String dep = st.getDepartement() != null ? safe(st.getDepartement().getNom()) : "—";
+            sb.append("- ").append(safe(st.getPrenom())).append(" ").append(safe(st.getNom()))
+              .append(" | ").append(safe(st.getFiliere()))
+              .append(" | ").append(safe(st.getNiveau()))
+              .append(" | ").append(dep)
+              .append(" | ").append(safe(st.getEmail()))
+              .append("\n");
+        }
+        return sb.toString();
+    }
+
+    /** Liste des encadrants (fonction, département, email). */
+    private String formatEncadrants() {
+        List<Encadrant> list = encadrantRepository.findAll();
+        if (list.isEmpty()) return "";
+        StringBuilder sb = new StringBuilder("\nListe des encadrants (" + list.size()
+                + ") — prénom nom | fonction | département | email :\n");
+        for (Encadrant e : list) {
+            String dep = e.getDepartement() != null ? safe(e.getDepartement().getNom()) : "—";
+            sb.append("- ").append(safe(e.getPrenom())).append(" ").append(safe(e.getNom()))
+              .append(" | ").append(safe(e.getFonction()))
+              .append(" | ").append(dep)
+              .append(" | ").append(safe(e.getEmail()))
+              .append("\n");
+        }
+        return sb.toString();
+    }
+
+    /** Liste des départements (code, nom, responsable, état). */
+    private String formatDepartements() {
+        List<Departement> list = departementRepository.findAll();
+        if (list.isEmpty()) return "";
+        StringBuilder sb = new StringBuilder("\nListe des départements (" + list.size()
+                + ") — code | nom | responsable | état :\n");
+        for (Departement d : list) {
+            sb.append("- ").append(safe(d.getCode()))
+              .append(" | ").append(safe(d.getNom()))
+              .append(" | ").append(safe(d.getResponsable()))
+              .append(" | ").append(Boolean.TRUE.equals(d.getActif()) ? "actif" : "inactif")
+              .append("\n");
+        }
         return sb.toString();
     }
 
@@ -170,6 +310,7 @@ public class ChatbotService {
         }
     }
 
+    @Transactional(readOnly = true) // session ouverte pour charger les associations (OSIV désactivé)
     public Map<String, Object> matchCandidats(String username, String besoin) {
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("besoin", besoin);

@@ -488,6 +488,8 @@ public class OllamaService {
     public String repondreAvecContexte(String contexte, String question) {
         String prompt = """
             Tu es l'assistant RH de la plateforme de gestion des stages d'OCP Group.
+            Tu t'adresses à un responsable RH autorisé : tu peux donc fournir les informations
+            nominatives (candidatures, stagiaires) présentes dans les données ci-dessous.
             Voici les DONNÉES ACTUELLES de la plateforme :
             %s
 
@@ -497,7 +499,7 @@ public class OllamaService {
             Question de l'utilisateur : %s
             """.formatted(contexte, question);
         try {
-            String r = callOllama(prompt, false, 220);
+            String r = callOllama(prompt, false, 512);
             return (r == null || r.isBlank()) ? "Je n'ai pas pu générer de réponse." : r.trim();
         } catch (Exception e) {
             log.warn("Erreur assistant RH: {}", e.getMessage());
@@ -518,6 +520,8 @@ public class OllamaService {
             if (prior == null) {
                 prompt = """
                     Tu es l'assistant RH de la plateforme de gestion des stages d'OCP Group.
+                    Tu t'adresses à un responsable RH autorisé : tu peux donc fournir les informations
+                    nominatives (candidatures, stagiaires) présentes dans les données ci-dessous.
                     Voici les DONNÉES ACTUELLES de la plateforme :
                     %s
 
@@ -531,7 +535,7 @@ public class OllamaService {
                 prompt = "Question : " + question; // continuation : le contexte est déjà en mémoire
             }
 
-            JsonNode node = callOllamaRaw(prompt, false, 220, prior);
+            JsonNode node = callOllamaRaw(prompt, false, 512, prior);
 
             // Mémorise le nouvel état de conversation
             if (sessionKey != null) {

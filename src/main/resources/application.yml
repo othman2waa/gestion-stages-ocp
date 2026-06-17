@@ -59,10 +59,10 @@ app:
     url: http://localhost:11434/api/generate
     model: llama3.2:3b
     embed-model: nomic-embed-text   # modèle d'embeddings (matching sémantique)
-    timeout-seconds: 120     # le LLM local peut être lent sur CPU
+    timeout-seconds: 180     # marge confortable pour le LLM local sur CPU
     temperature: 0.2         # bas = scores déterministes
     keep-alive: 30m          # garde le modèle chargé en mémoire (évite le rechargement à froid)
-    num-ctx: 2048            # fenêtre de contexte réduite = traitement plus rapide
+    num-ctx: 4096            # contexte sélectif (ciblé par question) = court
   ocr:
     tessdata-path: /usr/local/share/tessdata   # données Tesseract (brew)
     languages: fra+eng                          # langues OCR
